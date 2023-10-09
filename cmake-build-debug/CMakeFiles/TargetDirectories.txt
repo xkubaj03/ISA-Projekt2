@@ -1,0 +1,3 @@
+/run/media/josefkuba/DATA/Vskola/5Sem/ISA/Projekt2/cmake-build-debug/CMakeFiles/Projekt2.dir
+/run/media/josefkuba/DATA/Vskola/5Sem/ISA/Projekt2/cmake-build-debug/CMakeFiles/edit_cache.dir
+/run/media/josefkuba/DATA/Vskola/5Sem/ISA/Projekt2/cmake-build-debug/CMakeFiles/rebuild_cache.dir
