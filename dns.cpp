@@ -21,14 +21,18 @@
 #include <cstdint>
 #include <vector>
 #include <algorithm>
+#include <iomanip>
+#include <arpa/inet.h>
+#include <cstdint>
+
 
 struct Param {
     bool r_param = false;
     bool x_param = false;
     bool a6_param = false;
-    std::string s_param = "";
+    std::string s_param;
     uint p_param = 53;
-    std::string address_param = "";
+    std::string address_param;
 };
 
 struct dns_header {
@@ -41,10 +45,11 @@ struct dns_header {
 };
 
 struct dns_question {
-    //std::string name;
+    std::string name;
     uint16_t dnstype;  /* The QTYPE (1 = A) */
     uint16_t dnsclass; /* The QCLASS (1 = IN) */
 };
+
 struct dns_answer {
     std::string name;       // Doménové jméno, na které byla odpověď nalezena
     uint16_t dnstype;       // Typ záznamu (např. A, AAAA, MX)
@@ -70,10 +75,14 @@ struct dns_additional {
     std::vector<uint8_t> data; // Data doplňujícího záznamu
 };
 
-#define IP_ADDR "127.0.0.1"      // a fixed server IP address
-#define BUFFER 1024              // buffer length
+#define IP_ADDR "127.0.0.1"
+#define BUFFER 1024
 
 #define DEBUG 1
+
+void printUsage() {
+    std::cerr << "Usage: dns [-r] [-x] [-6] -s server [-p port] address" << std::endl;
+}
 
 void read_args(int argc, char *argv[], Param *ret) {
     int opt;
@@ -92,57 +101,126 @@ void read_args(int argc, char *argv[], Param *ret) {
                 ret->s_param = optarg;
                 break;
             case 'p':
+                if (std::stoi(optarg) < 0 || std::stoi(optarg) > 65535) {
+                    std::cout << "Wrong port number! (0 - 65535)\n";
+                    exit(0);
+                }
                 ret->p_param = std::stoi(optarg);
                 break;
             default:
-                std::cerr << "Unknown parameter: " << static_cast<char>(optopt) << std::endl
-                          << "Usage: dns [-r] [-x] [-6] -s server [-p port] address" << std::endl;
-                exit(1);
+                std::cerr << "Unknown parameter: " << static_cast<char>(optopt) << std::endl;
+                printUsage();
+                exit(0);
         }
     }
 
     if (optind < argc) {
         ret->address_param = argv[optind];
     } else {
-        std::cerr << "Missing targeted address!" << std::endl
-                  << "Usage: dns [-r] [-x] [-6] -s server [-p port] address" << std::endl;
-        exit(1);
+        std::cerr << "Missing targeted address!" << std::endl;
+        printUsage();
+        exit(0);
     }
     if (ret->s_param.empty()) {
-        std::cerr << "Requiered parameter -s with argument" << std::endl
-                  << "Usage: dns [-r] [-x] [-6] -s server [-p port] address" << std::endl;
-        exit(1);
+        std::cerr << "Requiered parameter -s with argument" << std::endl;
+        printUsage();
+        exit(0);
     }
 }
-// Funkce pro zakódování názvu domény do formátu DNS
 
-void encodeDNSName(const std::string &hostname, std::array<uint8_t, 255> &dns_name) {
-    dns_name.fill(0); // Inicializace pole nulami
-    size_t offset = 0; // Aktuální pozice v poli
+void printCharArrayAsHex(const char *array, std::size_t length) {
+    for (std::size_t i = 0; i < length; ++i) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(static_cast<unsigned char>(array[i])) << " ";
+    }
+    std::cout << std::dec << std::endl; // Nastaví zpět na desítkový formát
+}
 
-    for (size_t i = 0; i < hostname.length(); ++i) {
-        if (hostname[i] == '.') {
-            // Uložte délku aktuálního labelu
-            dns_name[offset] = i - offset;
-            ++offset;
-            size_t labelStart = offset;
+void printStringAsHex(const std::string &str) {
+    for (char c: str) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(c))
+                  << " ";
+    }
+    std::cout << std::dec << std::endl;
+}
 
-            // Zkopírujte znaky labelu
-            for (size_t j = 0; j < i - offset; ++j) {
-                dns_name[offset] = static_cast<uint8_t>(hostname[labelStart + j]);
-                ++offset;
-            }
+std::string encodeDirect(std::string hostname) {
+    hostname = "." + hostname;
+
+    int dot = 0;
+    int next_dot = 1;
+
+    while (hostname[next_dot] != 0) {
+        if (hostname[next_dot] != '.') {
+            next_dot++;
+
+        } else {
+            hostname[dot] = next_dot - dot - 1;
+            dot = next_dot++;
         }
     }
 
-    // Nastavte nulový label na konec
-    dns_name[offset] = 0;
+    hostname[dot] = hostname.length() - dot - 1;
+    if (DEBUG) {
+        std::cout << "Encoded: ";
+        printStringAsHex(hostname);
+        std::cout << std::endl;
+    }
+
+    return hostname;
+}
+
+in_addr_t getIP(std::string name) {
+    struct hostent *host_info;
+
+    host_info = gethostbyname(name.c_str());
+    if (host_info == NULL) {
+        std::cerr << "gethostbyname error" << std::endl;
+        exit(1);
+    }
+
+    struct in_addr *ipv4_addr = (struct in_addr *) host_info->h_addr;
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
+
+    if (DEBUG)
+        std::cout << "IPv4 Address: " << ip << std::endl;
+
+    return inet_addr(ip);
+}
+
+std::string encodeReverse(std::string hostname) {
+    struct hostent *host_info;
+
+    host_info = gethostbyname(hostname.c_str());
+    if (host_info == NULL) {
+        std::cerr << "gethostbyname error" << std::endl;
+        exit(1);
+    }
+
+    struct in_addr *ipv4_addr = (struct in_addr *) host_info->h_addr;
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
+
+    hostname = ip;
+    std::string ret;
+
+    int pos;
+    for (int i = 0; i < 3; i++) {
+        pos = hostname.rfind('.');
+        ret.append(hostname, pos+1);
+        ret.append(".");
+        hostname = hostname.substr(0, pos);
+    }
+    ret.append(hostname);
+    ret.append(".in-addr.arpa.");
+    return ret;
 }
 
 int main(int argc, char **argv) {
     Param parameters;
     read_args(argc, argv, &parameters);
-    if (DEBUG) {
+    if (0) {
         std::cout << "Rekurze: " << parameters.r_param << std::endl;
         std::cout << "Reverzní dotaz: " << parameters.x_param << std::endl;
         std::cout << "Použít AAAA: " << parameters.a6_param << std::endl;
@@ -150,83 +228,63 @@ int main(int argc, char **argv) {
         std::cout << "Port: " << parameters.p_param << std::endl;
         std::cout << "Adresa: " << parameters.address_param << std::endl;
     }
-    /*Authoritative: No, Recursive: Yes, Truncated: No
-    Question section (1)
-    www.fit.vut.cz., A, IN
-    Answer section (1)
-    www.fit.vut.cz., A, IN, 14400, 147.229.9.26
-    Authority section (0)
-    Additional section (0)*/
 
-    /*
-    std::cout <<
-    "Authoritative: "   << xxx << ", " <<
-    "Recursive: "       << yyy << ", " <<
-    "Truncated: "       << ccc;*/
+    char dns_packet[BUFFER];
+    int offset = 0;
 
-
-    dns_header header;
+    dns_header header{};
     header.id = htons(0x1234);
-    header.flags = htons(0x0100);
+
+    int16_t flags = 0x0000;
+    if (parameters.r_param)
+        flags |= (1 << 8);
+    if (parameters.x_param)
+        flags |= (1 << 7);
+    header.flags = htons(flags);
     header.qdcount = htons(1);
     header.ancount = htons(0);
     header.nscount = htons(0);
     header.arcount = htons(0);
 
-    dns_question question;
-    question.dnstype = htons(1);  /* QTYPE 1=A */
-    question.dnsclass = htons(1); /* QCLASS 1=IN */
-
-    /*dns_answer answer;
-    dns_authority authority;
-    dns_additional additional;*/
-
-
-    // Sestavení DNS packetu
-    char dns_packet[1024];
-    int offset = 0;
-
-    // Kopírování hlavičky do bufferu
     memcpy(&dns_packet[offset], &header, sizeof(dns_header));
     offset += sizeof(dns_header);
 
+    dns_question question;
+    question.dnstype = htons(1);  /* QTYPE 1=A */
+    if (parameters.a6_param)
+        question.dnstype = htons(28); /* QTYPE 28=AAAA */
+    if (parameters.r_param) {
+        question.name = encodeDirect(encodeReverse(parameters.address_param));
+        question.name = question.name.substr(0, question.name.length() - 1);
+        question.dnstype = htons(12); /* QTYPE 12=PTR */
+    } else {
+        question.name = encodeDirect(parameters.address_param);
+    }
+    question.dnsclass = htons(1); /* QCLASS 1=IN */
 
-    //memcpy(&dns_packet[offset], &question, sizeof(question));
-    //offset += sizeof(question);
-    char x[] = " www github com ";
-    x[0] = 3;
-    x[4] = 6;
-    x[11] = 3;
-    x[15] = 0;
-
-    memcpy(&dns_packet[offset], &x, sizeof(x));
-    offset += sizeof(x)-1; //null byte of string
-    memcpy(&dns_packet[offset], &question, sizeof(question));
-    offset += sizeof(question);
-    /*memcpy(&dns_packet[offset], &answer, sizeof(answer));
-    offset += sizeof(answer);
-
-    memcpy(&dns_packet[offset], &additional, sizeof(additional));
-    offset += sizeof(additional);
-
-    memcpy(&dns_packet[offset], &authority, sizeof(authority));
-    offset += sizeof(authority);*/
-
-
-    /* std::array<uint8_t, 255> dns_name{};
-  //std::array<uint8_t> dns_name;
-  encodeDNSName(question.name, dns_name);*/
+    memcpy(&dns_packet[offset], question.name.c_str(), question.name.length() + 1);
+    offset += question.name.length() + 1;
+    memcpy(&dns_packet[offset], &question.dnstype, sizeof(question.dnstype));
+    offset += sizeof(question.dnstype);
+    memcpy(&dns_packet[offset], &question.dnsclass, sizeof(question.dnsclass));
+    offset += sizeof(question.dnsclass);
 
     int sock;
-    struct sockaddr_in server;
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)   //create a client socket
-        err(1, "socket() failed\n");
+    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        std::cerr << "socket() failed\n";
+        exit(1);
+    }
 
-    printf("* Socket created\n");
-    server.sin_addr.s_addr = inet_addr(IP_ADDR);   // set the server address
+    if (DEBUG) {
+        std::cout << "* Socket created\n";
+    }
+
+
+    struct sockaddr_in server;
+    server.sin_addr.s_addr = getIP(parameters.s_param);
     server.sin_family = AF_INET;
-    server.sin_port = htons(parameters.p_param);                 // set the server port (network byte order)
-    // Odeslání DNS packetu na server
+    server.sin_port = htons(parameters.p_param);
+
     ssize_t sent_bytes = sendto(sock, dns_packet, offset, 0, (struct sockaddr *) &server, sizeof(server));
     if (sent_bytes < 0) {
         std::cout << "Chyba při odesílání DNS packetu" << std::endl;
