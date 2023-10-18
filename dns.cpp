@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
     question.dnstype = htons(1);  /* QTYPE 1=A */
     if (parameters.a6_param)
         question.dnstype = htons(28); /* QTYPE 28=AAAA */
-    if (parameters.r_param) {
+    if (parameters.x_param) {
         question.name = encodeDirect(encodeReverse(parameters.address_param));
         question.name = question.name.substr(0, question.name.length() - 1);
         question.dnstype = htons(12); /* QTYPE 12=PTR */
