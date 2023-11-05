@@ -24,6 +24,7 @@
 #include <iomanip>
 #include <arpa/inet.h>
 #include <cstdint>
+#include <cstring>
 
 
 struct Param {
@@ -77,6 +78,7 @@ struct dns_additional {
 
 #define IP_ADDR "127.0.0.1"
 #define BUFFER 1024
+#define SBUFF 128
 
 #define DEBUG 1
 
@@ -161,7 +163,7 @@ std::string encodeDirect(std::string hostname) {
     }
 
     hostname[dot] = hostname.length() - dot - 1;
-    if (DEBUG) {
+    if (0) {
         std::cout << "Encoded: ";
         printStringAsHex(hostname);
         std::cout << std::endl;
@@ -183,7 +185,7 @@ in_addr_t getIP(std::string name) {
     char ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
 
-    if (DEBUG)
+    if (0)
         std::cout << "IPv4 Address: " << ip << std::endl;
 
     return inet_addr(ip);
@@ -217,6 +219,35 @@ std::string encodeReverse(std::string hostname) {
     return ret;
 }
 
+void PrintQuestionType(int16_t x) {
+    switch (x) {
+        case 1:
+            std::cout << "A";
+            break;
+        case 2:
+            std::cout << "NS";
+            break;
+        case 5:
+            std::cout << "CNAME";
+            break;
+        case 6:
+            std::cout << "SOA";
+            break;
+        case 12:
+            std::cout << "PTR";
+            break;
+        case 15:
+            std::cout << "MX";
+            break;
+        case 28:
+            std::cout << "AAAA";
+            break;
+        default:
+            std::cout << "Unknown";
+            break;
+    }
+}
+
 int main(int argc, char **argv) {
     Param parameters;
     read_args(argc, argv, &parameters);
@@ -236,10 +267,12 @@ int main(int argc, char **argv) {
     header.id = htons(0x1234);
 
     int16_t flags = 0x0000;
-    if (parameters.r_param)
+    if (parameters.r_param) {
         flags |= (1 << 8);
-    if (parameters.x_param)
+    }
+    if (parameters.x_param) {
         flags |= (1 << 7);
+    }
     header.flags = htons(flags);
     header.qdcount = htons(1);
     header.ancount = htons(0);
@@ -275,7 +308,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if (DEBUG) {
+    if (0) {
         std::cout << "* Socket created\n";
     }
 
@@ -287,12 +320,104 @@ int main(int argc, char **argv) {
 
     ssize_t sent_bytes = sendto(sock, dns_packet, offset, 0, (struct sockaddr *) &server, sizeof(server));
     if (sent_bytes < 0) {
-        std::cout << "Chyba při odesílání DNS packetu" << std::endl;
+        std::cerr << "Chyba při odesílání DNS packetu" << std::endl;
         exit(1);
+    }
+    //recieving
+    char recievedBuffer[BUFFER];
+    ssize_t bytes_received = recvfrom(sock, recievedBuffer, sizeof(recievedBuffer), 0, NULL, NULL);
+    if (bytes_received < 0) {
+        std::cerr << "Chyba při přijímání dat" << std::endl;
+        close(sock);
+        return 1;
+    } else if (bytes_received == 0) {
+        std::cerr << "Vzdálený konec ukončil spojení." << std::endl;
+        close(sock);
+        return 0;
+    }
+    close(sock);
+    //std::cout << "Počet přijatých bytů je: " << bytes_received << std::endl;
+    printCharArrayAsHex(recievedBuffer, bytes_received);
+
+    // store recieved data into headers
+    dns_header recieved_header {};
+    memcpy(&recieved_header, recievedBuffer, sizeof(dns_header));
+    recieved_header.id = ntohs(recieved_header.id);
+    recieved_header.flags = ntohs(recieved_header.flags);
+    recieved_header.qdcount = ntohs(recieved_header.qdcount);
+    recieved_header.ancount = ntohs(recieved_header.ancount);
+    recieved_header.nscount = ntohs(recieved_header.nscount);
+    recieved_header.arcount = ntohs(recieved_header.arcount);
+
+    //std::cout << "ID: 0x" << std::hex << recieved_header.id << std::endl << std::dec;
+
+    std::cout << "Authoritative: ";
+    if (recieved_header.flags & (1 << 10)) {
+        std::cout << "Yes";
+    } else {
+        std::cout << "No";
+    }
+    std::cout << ", Recursive: ";
+    if (recieved_header.flags & (1 << 8)) {
+        std::cout << "Yes";
+    } else {
+        std::cout << "No";
+    }
+    std::cout << ", Truncated: ";
+    if (recieved_header.flags & (1 << 9)) {
+        std::cout << "Yes" << std::endl;
+    } else {
+        std::cout << "No" << std::endl;
+    }
+
+    char recieved_question_name[SBUFF];
+
+    char *nullTerminator = strchr(recievedBuffer + sizeof(dns_header), '\0');
+    int nullIndex = nullTerminator - recievedBuffer;
+
+    memcpy(&recieved_question_name, recievedBuffer + sizeof(dns_header), nullIndex);
+    recieved_question_name[nullIndex -  sizeof(dns_header)] = '\0';
+    recieved_question_name[0] = ' ';
+    //every char < 46 replace with dot
+    for (int i = 1; (i < nullIndex) && (recieved_question_name[i] != '\0'); i++) {
+        if (recieved_question_name[i] < 46) {
+            recieved_question_name[i] = '.';
+        }
+    }
+    std::cout << "Question section(1)" << std::endl;
+    std::cout << recieved_question_name << ", ";
+
+    uint16_t recieved_question_type;
+    uint16_t recieved_question_class;
+
+    memcpy(&recieved_question_type, recievedBuffer + nullIndex + 1, sizeof(uint16_t));
+    memcpy(&recieved_question_class, recievedBuffer + nullIndex + 1 + sizeof(uint16_t), sizeof(uint16_t));
+
+    recieved_question_type = ntohs(recieved_question_type);
+    recieved_question_class = ntohs(recieved_question_class);
+
+    PrintQuestionType(recieved_question_type);
+
+
+    if (recieved_question_class == 1) {
+        std::cout << ", IN" << std::endl;
+    } else {
+        std::cout << ", Unknown" << std::endl;
+    }
+
+    std::cout << "Answer section (1)" << std::endl;
+    //check first byte if is it pointer
+    if ((recievedBuffer[nullIndex + 1 + 2*sizeof(uint16_t)] & 0xc0) == 0xc0) {
+        std::cout << "Pointer!!" << std::endl;
+
+
+    }else {
+        std::cout << "No Pointer!!! " << std::endl;
+
     }
 
 
-    close(sock);
+
     if (DEBUG)
         std::cout << "* Closing the client socket ...\n";
     exit(EXIT_SUCCESS);
