@@ -247,7 +247,7 @@ void PrintQuestionType(int16_t x) {
             break;
     }
 }
-
+//TODO make function for exporting www address
 int main(int argc, char **argv) {
     Param parameters;
     read_args(argc, argv, &parameters);
@@ -325,6 +325,7 @@ int main(int argc, char **argv) {
     }
     //recieving
     char recievedBuffer[BUFFER];
+    offset = 0;
     ssize_t bytes_received = recvfrom(sock, recievedBuffer, sizeof(recievedBuffer), 0, NULL, NULL);
     if (bytes_received < 0) {
         std::cerr << "Chyba při přijímání dat" << std::endl;
@@ -370,34 +371,38 @@ int main(int argc, char **argv) {
         std::cout << "No" << std::endl;
     }
 
-    char recieved_question_name[SBUFF];
-
     char *nullTerminator = strchr(recievedBuffer + sizeof(dns_header), '\0');
     int nullIndex = nullTerminator - recievedBuffer;
 
-    memcpy(&recieved_question_name, recievedBuffer + sizeof(dns_header), nullIndex);
+    char recieved_question_name[SBUFF];
+
+    offset += sizeof(dns_header);
+    memcpy(&recieved_question_name, recievedBuffer + offset, nullIndex);
     recieved_question_name[nullIndex -  sizeof(dns_header)] = '\0';
     recieved_question_name[0] = ' ';
-    //every char < 46 replace with dot
+
     for (int i = 1; (i < nullIndex) && (recieved_question_name[i] != '\0'); i++) {
         if (recieved_question_name[i] < 46) {
             recieved_question_name[i] = '.';
         }
     }
-    std::cout << "Question section(1)" << std::endl;
-    std::cout << recieved_question_name << ", ";
+    offset = nullIndex + 1;
 
     uint16_t recieved_question_type;
     uint16_t recieved_question_class;
 
-    memcpy(&recieved_question_type, recievedBuffer + nullIndex + 1, sizeof(uint16_t));
-    memcpy(&recieved_question_class, recievedBuffer + nullIndex + 1 + sizeof(uint16_t), sizeof(uint16_t));
+    memcpy(&recieved_question_type, recievedBuffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+    memcpy(&recieved_question_class, recievedBuffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
 
     recieved_question_type = ntohs(recieved_question_type);
     recieved_question_class = ntohs(recieved_question_class);
 
-    PrintQuestionType(recieved_question_type);
+    std::cout << "Question section(1)" << std::endl;
+    std::cout << recieved_question_name << ", ";
 
+    PrintQuestionType(recieved_question_type);
 
     if (recieved_question_class == 1) {
         std::cout << ", IN" << std::endl;
@@ -405,20 +410,112 @@ int main(int argc, char **argv) {
         std::cout << ", Unknown" << std::endl;
     }
 
+
+    //printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
     std::cout << "Answer section (1)" << std::endl;
     //check first byte if is it pointer
-    if ((recievedBuffer[nullIndex + 1 + 2*sizeof(uint16_t)] & 0xc0) == 0xc0) {
-        std::cout << "Pointer!!" << std::endl;
+    char recieved_answer_name[SBUFF];
 
-
+    if ((recievedBuffer[offset] & 0xc0) == 0xc0) {
+        memcpy(&recieved_answer_name, recieved_question_name, nullIndex);
+        offset += 2;
     }else {
-        std::cout << "No Pointer!!! " << std::endl;
+        nullTerminator = strchr(recievedBuffer + offset, '\0');
+        nullIndex = nullTerminator - recievedBuffer;
+        memcpy(&recieved_answer_name, recievedBuffer + offset, nullIndex);
+        recieved_answer_name[nullIndex -  offset] = '\0';
+        recieved_answer_name[0] = ' ';
 
+        for (int i = 1; (i < nullIndex) && (recieved_answer_name[i] != '\0'); i++) {
+            if (recieved_answer_name[i] < 46) {
+                recieved_answer_name[i] = '.';
+            }
+        }
+        offset = nullIndex + 1;
     }
 
+    uint16_t recieved_answer_type;
+    uint16_t recieved_answer_class;
+
+    memcpy(&recieved_answer_type, recievedBuffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+    memcpy(&recieved_answer_class, recievedBuffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+
+    recieved_answer_type = ntohs(recieved_answer_type);
+    recieved_answer_class = ntohs(recieved_answer_class);
+
+    std::cout << "Answer section(1)" << std::endl;
+    std::cout << recieved_answer_name << ", ";
+
+    PrintQuestionType(recieved_answer_type);
+
+    if (recieved_answer_class == 1) {
+        std::cout << ", IN";
+    } else {
+        std::cout << ", Unknown";
+    }
+
+    uint32_t recieved_answer_ttl;
+    memcpy(&recieved_answer_ttl, recievedBuffer + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+    recieved_answer_ttl = ntohl(recieved_answer_ttl);
 
 
-    if (DEBUG)
+    uint16_t recieved_answer_data_length;
+    memcpy(&recieved_answer_data_length, recievedBuffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+    recieved_answer_data_length = ntohs(recieved_answer_data_length);
+
+    std::cout << ", " << recieved_answer_ttl << ", " ;
+
+    if(recieved_answer_type == 12) {
+        //reversed search
+        char recieved_answer_name_reversed[SBUFF];
+        nullTerminator = strchr(recievedBuffer + offset, '\0');
+        nullIndex = nullTerminator - recievedBuffer;
+        memcpy(&recieved_answer_name_reversed, recievedBuffer + offset, nullIndex);
+        recieved_answer_name_reversed[nullIndex -  offset] = '\0';
+        recieved_answer_name_reversed[0] = ' ';
+
+        for (int i = 1; (i < nullIndex) && (recieved_answer_name_reversed[i] != '\0'); i++) {
+            if (recieved_answer_name_reversed[i] < 46) {
+                recieved_answer_name_reversed[i] = '.';
+            }
+        }
+        std::cout << recieved_answer_name_reversed << std::endl;
+        offset = nullIndex + 1;
+
+
+    } else if (recieved_answer_data_length == 4) {
+        std::cout << std::dec << (((int)recievedBuffer[offset] < 0) ? ((int)recievedBuffer[offset] + 256) : (int)recievedBuffer[offset]) << ".";
+        std::cout << std::dec << (((int)recievedBuffer[offset + 1] < 0) ? ((int)recievedBuffer[offset + 1] + 256) : (int)recievedBuffer[offset + 1]) << ".";
+        std::cout << std::dec << (((int)recievedBuffer[offset + 2] < 0) ? ((int)recievedBuffer[offset + 2] + 256) : (int)recievedBuffer[offset + 2]) << ".";
+        std::cout << std::dec << (((int)recievedBuffer[offset + 3] < 0) ? ((int)recievedBuffer[offset + 3] + 256) : (int)recievedBuffer[offset + 3]) << std::endl;
+        offset += 4;
+    } else if (recieved_answer_data_length == 16) {
+        char ipv6_str[INET6_ADDRSTRLEN];
+        struct in6_addr ipv6_address;
+
+        // Kopírování 16 bytů IPv6 adresy do struktury
+        memcpy(&ipv6_address, &recievedBuffer[offset], 16);
+
+        // Převod IPv6 adresy na textový řetězec
+        if (inet_ntop(AF_INET6, &ipv6_address, ipv6_str, INET6_ADDRSTRLEN) != NULL) {
+            std::cout << ipv6_str << std::endl;
+        } else {
+            std::cerr << "Failed to convert IPv6 address." << std::endl;
+        }
+        offset += 16;
+    } else {
+        std::cerr << "Bad address length" << std::endl;
+    }
+    std::cout << "Authority section (0)" << std::endl;
+    std::cout << "Additional section (0)" << std::endl;
+
+    printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
+    if (DEBUG) {
         std::cout << "* Closing the client socket ...\n";
+    }
     exit(EXIT_SUCCESS);
 }
