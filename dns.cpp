@@ -146,6 +146,22 @@ void printStringAsHex(const std::string &str) {
     std::cout << std::dec << std::endl;
 }
 
+std::string getIP(std::string name) {
+    struct hostent *host_info;
+
+    host_info = gethostbyname(name.c_str());
+    if (host_info == NULL) {
+        std::cerr << "gethostbyname error" << std::endl;
+        exit(1);
+    }
+
+    struct in_addr *ipv4_addr = (struct in_addr *) host_info->h_addr;
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
+
+    return ip;
+}
+
 std::string encodeDirect(std::string hostname) {
     hostname = "." + hostname;
 
@@ -172,39 +188,8 @@ std::string encodeDirect(std::string hostname) {
     return hostname;
 }
 
-in_addr_t getIP(std::string name) {
-    struct hostent *host_info;
-
-    host_info = gethostbyname(name.c_str());
-    if (host_info == NULL) {
-        std::cerr << "gethostbyname error" << std::endl;
-        exit(1);
-    }
-
-    struct in_addr *ipv4_addr = (struct in_addr *) host_info->h_addr;
-    char ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
-
-    if (0)
-        std::cout << "IPv4 Address: " << ip << std::endl;
-
-    return inet_addr(ip);
-}
-
 std::string encodeReverse(std::string hostname) {
-    struct hostent *host_info;
-
-    host_info = gethostbyname(hostname.c_str());
-    if (host_info == NULL) {
-        std::cerr << "gethostbyname error" << std::endl;
-        exit(1);
-    }
-
-    struct in_addr *ipv4_addr = (struct in_addr *) host_info->h_addr;
-    char ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
-
-    hostname = ip;
+    hostname = getIP(hostname);
     std::string ret;
 
     int pos;
@@ -219,8 +204,154 @@ std::string encodeReverse(std::string hostname) {
     return ret;
 }
 
-void PrintQuestionType(int16_t x) {
-    switch (x) {
+void create_dns_packet(Param parameters, char* buffer, int& offset) {
+    //TODO IPv4 done IPv6 not done
+    dns_header header{};
+    header.id = htons(0x1234);
+
+    int16_t flags = 0x0000;
+    if (parameters.r_param) {
+        flags |= (1 << 8);
+    }
+    if (parameters.x_param) {
+        flags |= (1 << 7);
+    }
+    header.flags = htons(flags);
+    header.qdcount = htons(1);
+    header.ancount = htons(0);
+    header.nscount = htons(0);
+    header.arcount = htons(0);
+
+    memcpy(&buffer[offset], &header, sizeof(dns_header));
+    offset += sizeof(dns_header);
+
+    dns_question question;
+    question.dnstype = htons(1);  /* QTYPE 1=A */
+
+    if (parameters.a6_param)
+        question.dnstype = htons(28); /* QTYPE 28=AAAA */
+
+    if (parameters.x_param) {
+        question.name = encodeDirect(encodeReverse(parameters.address_param));
+        question.name = question.name.substr(0, question.name.length() - 1);
+        question.dnstype = htons(12); /* QTYPE 12=PTR */
+    } else {
+        question.name = encodeDirect(parameters.address_param);
+    }
+
+    question.dnsclass = htons(1); /* QCLASS 1=IN */
+
+    memcpy(&buffer[offset], question.name.c_str(), question.name.length() + 1);
+    offset += question.name.length() + 1;
+
+    memcpy(&buffer[offset], &question.dnstype, sizeof(question.dnstype));
+    offset += sizeof(question.dnstype);
+
+    memcpy(&buffer[offset], &question.dnsclass, sizeof(question.dnsclass));
+    offset += sizeof(question.dnsclass);
+
+}
+
+void get_header(dns_header& header, char* buffer, int& offset) {
+    memcpy(&header, buffer + offset, sizeof(dns_header));
+    memcpy(&header, buffer, sizeof(dns_header));
+    header.id = ntohs(header.id);
+    header.flags = ntohs(header.flags);
+    header.qdcount = ntohs(header.qdcount);
+    header.ancount = ntohs(header.ancount);
+    header.nscount = ntohs(header.nscount);
+    header.arcount = ntohs(header.arcount);
+    offset += sizeof(dns_header);
+}
+
+void printHeaderInfo(dns_header header){
+    std::cout << "Authoritative: ";
+    if (header.flags & (1 << 10)) {
+        std::cout << "Yes";
+    } else {
+        std::cout << "No";
+    }
+    std::cout << ", Recursive: ";
+    if (header.flags & (1 << 8)) {
+        std::cout << "Yes";
+    } else {
+        std::cout << "No";
+    }
+    std::cout << ", Truncated: ";
+    if (header.flags & (1 << 9)) {
+        std::cout << "Yes" << std::endl;
+    } else {
+        std::cout << "No" << std::endl;
+    }
+}
+
+std::string get_DN(char* buffer, int& offset){
+    int tmp = offset;
+    char *nullTerminator = strchr(buffer + offset, '\0');
+    int nullIndex = nullTerminator - buffer;
+
+    char recieved_question_name[SBUFF];
+
+    memcpy(&recieved_question_name, buffer + offset, nullIndex);
+    recieved_question_name[nullIndex - tmp] = '\0';
+    recieved_question_name[0] = ' ';
+    for (int i = 1; (i < nullIndex) && (recieved_question_name[i] != '\0'); i++) {
+        if (recieved_question_name[i] < 46) {
+            recieved_question_name[i] = '.';
+        }
+    }
+    offset = nullIndex + 1;
+
+    return recieved_question_name;
+}
+void get_question(dns_question& question, char* buffer, int& offset) {
+    question.name = get_DN(buffer, offset);
+    memcpy(&question.dnstype, buffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+    memcpy(&question.dnsclass, buffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+
+    question.dnstype = ntohs(question.dnstype);
+    question.dnsclass = ntohs(question.dnsclass);
+}
+
+void get_answer(dns_answer& answer, char* buffer, int& offset) {
+    uint16_t pointer;
+    memcpy(&pointer, buffer + offset, sizeof(uint16_t));
+    pointer = ntohs(pointer);
+
+    if (pointer >> 14 == 3) {
+        int tmp = offset;
+        offset = (pointer & 0x3FFF);
+
+        answer.name = get_DN(buffer, offset);
+
+        offset = tmp + 2;
+
+    }else {
+        answer.name = get_DN(buffer, offset);
+    }
+
+    memcpy(&answer.dnstype, buffer + offset, sizeof(uint16_t));
+    answer.dnstype = ntohs(answer.dnstype);
+    offset += sizeof(uint16_t);
+
+    memcpy(&answer.dnsclass, buffer + offset, sizeof(uint16_t));
+    answer.dnsclass = ntohs(answer.dnsclass);
+    offset += sizeof(uint16_t);
+
+    memcpy(&answer.ttl, buffer + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+    answer.ttl = ntohl(answer.ttl);
+
+    memcpy(&answer.datalength, buffer + offset, sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+    answer.datalength = ntohs(answer.datalength);
+
+}
+
+void PrintQuestionType_Class(uint16_t dnstype, uint16_t dnsclass) {
+    switch (dnstype) {
         case 1:
             std::cout << "A";
             break;
@@ -246,61 +377,51 @@ void PrintQuestionType(int16_t x) {
             std::cout << "Unknown";
             break;
     }
+    if (dnsclass == 1) {
+        std::cout << ", IN";
+    } else {
+        std::cout << ", Unknown";
+    }
 }
-//TODO make function for exporting www address
+
+void PrintRecievedAddress(char* buffer, int& offset, uint16_t recieved_answer_data_length, uint16_t recieved_answer_type) {
+    if(recieved_answer_type == 12) {
+        //reversed search
+        std::cout << get_DN(buffer, offset) << std::endl;
+
+    } else if (recieved_answer_data_length == 4) {
+        std::cout << std::dec << (((int)buffer[offset] < 0) ? ((int)buffer[offset] + 256) : (int)buffer[offset]) << ".";
+        std::cout << std::dec << (((int)buffer[offset + 1] < 0) ? ((int)buffer[offset + 1] + 256) : (int)buffer[offset + 1]) << ".";
+        std::cout << std::dec << (((int)buffer[offset + 2] < 0) ? ((int)buffer[offset + 2] + 256) : (int)buffer[offset + 2]) << ".";
+        std::cout << std::dec << (((int)buffer[offset + 3] < 0) ? ((int)buffer[offset + 3] + 256) : (int)buffer[offset + 3]) << std::endl;
+        offset += 4;
+    } else if (recieved_answer_data_length == 16) {
+        char ipv6_str[INET6_ADDRSTRLEN];
+        struct in6_addr ipv6_address;
+
+        // Kopírování 16 bytů IPv6 adresy do struktury
+        memcpy(&ipv6_address, &buffer[offset], 16);
+
+        // Převod IPv6 adresy na textový řetězec
+        if (inet_ntop(AF_INET6, &ipv6_address, ipv6_str, INET6_ADDRSTRLEN) != NULL) {
+            std::cout << ipv6_str << std::endl;
+        } else {
+            std::cerr << "Failed to convert IPv6 address." << std::endl;
+        }
+        offset += 16;
+    } else {
+        std::cerr << "Bad address length" << std::endl;
+    }
+}
+
 int main(int argc, char **argv) {
     Param parameters;
     read_args(argc, argv, &parameters);
-    if (0) {
-        std::cout << "Rekurze: " << parameters.r_param << std::endl;
-        std::cout << "Reverzní dotaz: " << parameters.x_param << std::endl;
-        std::cout << "Použít AAAA: " << parameters.a6_param << std::endl;
-        std::cout << "Server: " << parameters.s_param << std::endl;
-        std::cout << "Port: " << parameters.p_param << std::endl;
-        std::cout << "Adresa: " << parameters.address_param << std::endl;
-    }
 
     char dns_packet[BUFFER];
     int offset = 0;
 
-    dns_header header{};
-    header.id = htons(0x1234);
-
-    int16_t flags = 0x0000;
-    if (parameters.r_param) {
-        flags |= (1 << 8);
-    }
-    if (parameters.x_param) {
-        flags |= (1 << 7);
-    }
-    header.flags = htons(flags);
-    header.qdcount = htons(1);
-    header.ancount = htons(0);
-    header.nscount = htons(0);
-    header.arcount = htons(0);
-
-    memcpy(&dns_packet[offset], &header, sizeof(dns_header));
-    offset += sizeof(dns_header);
-
-    dns_question question;
-    question.dnstype = htons(1);  /* QTYPE 1=A */
-    if (parameters.a6_param)
-        question.dnstype = htons(28); /* QTYPE 28=AAAA */
-    if (parameters.x_param) {
-        question.name = encodeDirect(encodeReverse(parameters.address_param));
-        question.name = question.name.substr(0, question.name.length() - 1);
-        question.dnstype = htons(12); /* QTYPE 12=PTR */
-    } else {
-        question.name = encodeDirect(parameters.address_param);
-    }
-    question.dnsclass = htons(1); /* QCLASS 1=IN */
-
-    memcpy(&dns_packet[offset], question.name.c_str(), question.name.length() + 1);
-    offset += question.name.length() + 1;
-    memcpy(&dns_packet[offset], &question.dnstype, sizeof(question.dnstype));
-    offset += sizeof(question.dnstype);
-    memcpy(&dns_packet[offset], &question.dnsclass, sizeof(question.dnsclass));
-    offset += sizeof(question.dnsclass);
+    create_dns_packet(parameters, dns_packet, offset);
 
     int sock;
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
@@ -308,13 +429,8 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if (0) {
-        std::cout << "* Socket created\n";
-    }
-
-
     struct sockaddr_in server;
-    server.sin_addr.s_addr = getIP(parameters.s_param);
+    server.sin_addr.s_addr = inet_addr(getIP(parameters.s_param).c_str());
     server.sin_family = AF_INET;
     server.sin_port = htons(parameters.p_param);
 
@@ -323,9 +439,11 @@ int main(int argc, char **argv) {
         std::cerr << "Chyba při odesílání DNS packetu" << std::endl;
         exit(1);
     }
+
     //recieving
     char recievedBuffer[BUFFER];
     offset = 0;
+
     ssize_t bytes_received = recvfrom(sock, recievedBuffer, sizeof(recievedBuffer), 0, NULL, NULL);
     if (bytes_received < 0) {
         std::cerr << "Chyba při přijímání dat" << std::endl;
@@ -338,184 +456,43 @@ int main(int argc, char **argv) {
     }
     close(sock);
     //std::cout << "Počet přijatých bytů je: " << bytes_received << std::endl;
-    printCharArrayAsHex(recievedBuffer, bytes_received);
+    //printCharArrayAsHex(recievedBuffer, bytes_received);
 
-    // store recieved data into headers
+
     dns_header recieved_header {};
-    memcpy(&recieved_header, recievedBuffer, sizeof(dns_header));
-    recieved_header.id = ntohs(recieved_header.id);
-    recieved_header.flags = ntohs(recieved_header.flags);
-    recieved_header.qdcount = ntohs(recieved_header.qdcount);
-    recieved_header.ancount = ntohs(recieved_header.ancount);
-    recieved_header.nscount = ntohs(recieved_header.nscount);
-    recieved_header.arcount = ntohs(recieved_header.arcount);
+    get_header(recieved_header, recievedBuffer, offset);
 
-    //std::cout << "ID: 0x" << std::hex << recieved_header.id << std::endl << std::dec;
+    printHeaderInfo(recieved_header);
 
-    std::cout << "Authoritative: ";
-    if (recieved_header.flags & (1 << 10)) {
-        std::cout << "Yes";
-    } else {
-        std::cout << "No";
-    }
-    std::cout << ", Recursive: ";
-    if (recieved_header.flags & (1 << 8)) {
-        std::cout << "Yes";
-    } else {
-        std::cout << "No";
-    }
-    std::cout << ", Truncated: ";
-    if (recieved_header.flags & (1 << 9)) {
-        std::cout << "Yes" << std::endl;
-    } else {
-        std::cout << "No" << std::endl;
-    }
+    dns_question recieved_question {};
 
-    char *nullTerminator = strchr(recievedBuffer + sizeof(dns_header), '\0');
-    int nullIndex = nullTerminator - recievedBuffer;
-
-    char recieved_question_name[SBUFF];
-
-    offset += sizeof(dns_header);
-    memcpy(&recieved_question_name, recievedBuffer + offset, nullIndex);
-    recieved_question_name[nullIndex -  sizeof(dns_header)] = '\0';
-    recieved_question_name[0] = ' ';
-
-    for (int i = 1; (i < nullIndex) && (recieved_question_name[i] != '\0'); i++) {
-        if (recieved_question_name[i] < 46) {
-            recieved_question_name[i] = '.';
-        }
-    }
-    offset = nullIndex + 1;
-
-    uint16_t recieved_question_type;
-    uint16_t recieved_question_class;
-
-    memcpy(&recieved_question_type, recievedBuffer + offset, sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-    memcpy(&recieved_question_class, recievedBuffer + offset, sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-
-    recieved_question_type = ntohs(recieved_question_type);
-    recieved_question_class = ntohs(recieved_question_class);
+    get_question(recieved_question, recievedBuffer, offset);
 
     std::cout << "Question section(1)" << std::endl;
-    std::cout << recieved_question_name << ", ";
+    std::cout << recieved_question.name << ", ";
 
-    PrintQuestionType(recieved_question_type);
+    PrintQuestionType_Class(recieved_question.dnstype, recieved_question.dnsclass);
 
-    if (recieved_question_class == 1) {
-        std::cout << ", IN" << std::endl;
-    } else {
-        std::cout << ", Unknown" << std::endl;
-    }
+    std::cout << std::endl;
 
+
+    dns_answer recieved_answer {};
+    get_answer(recieved_answer, recievedBuffer, offset);
+
+    std::cout << "Answer section (1)" << std::endl;
+    std::cout << recieved_answer.name << ", ";
+    PrintQuestionType_Class(recieved_answer.dnstype, recieved_answer.dnsclass);
+    std::cout << ", " << recieved_answer.ttl << ", ";
+    PrintRecievedAddress(recievedBuffer, offset, recieved_answer.datalength, recieved_answer.dnstype);
 
     //printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
-    std::cout << "Answer section (1)" << std::endl;
-    //check first byte if is it pointer
-    char recieved_answer_name[SBUFF];
 
-    if ((recievedBuffer[offset] & 0xc0) == 0xc0) {
-        memcpy(&recieved_answer_name, recieved_question_name, nullIndex);
-        offset += 2;
-    }else {
-        nullTerminator = strchr(recievedBuffer + offset, '\0');
-        nullIndex = nullTerminator - recievedBuffer;
-        memcpy(&recieved_answer_name, recievedBuffer + offset, nullIndex);
-        recieved_answer_name[nullIndex -  offset] = '\0';
-        recieved_answer_name[0] = ' ';
-
-        for (int i = 1; (i < nullIndex) && (recieved_answer_name[i] != '\0'); i++) {
-            if (recieved_answer_name[i] < 46) {
-                recieved_answer_name[i] = '.';
-            }
-        }
-        offset = nullIndex + 1;
-    }
-
-    uint16_t recieved_answer_type;
-    uint16_t recieved_answer_class;
-
-    memcpy(&recieved_answer_type, recievedBuffer + offset, sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-    memcpy(&recieved_answer_class, recievedBuffer + offset, sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-
-    recieved_answer_type = ntohs(recieved_answer_type);
-    recieved_answer_class = ntohs(recieved_answer_class);
-
-    std::cout << "Answer section(1)" << std::endl;
-    std::cout << recieved_answer_name << ", ";
-
-    PrintQuestionType(recieved_answer_type);
-
-    if (recieved_answer_class == 1) {
-        std::cout << ", IN";
-    } else {
-        std::cout << ", Unknown";
-    }
-
-    uint32_t recieved_answer_ttl;
-    memcpy(&recieved_answer_ttl, recievedBuffer + offset, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
-    recieved_answer_ttl = ntohl(recieved_answer_ttl);
-
-
-    uint16_t recieved_answer_data_length;
-    memcpy(&recieved_answer_data_length, recievedBuffer + offset, sizeof(uint16_t));
-    offset += sizeof(uint16_t);
-    recieved_answer_data_length = ntohs(recieved_answer_data_length);
-
-    std::cout << ", " << recieved_answer_ttl << ", " ;
-
-    if(recieved_answer_type == 12) {
-        //reversed search
-        char recieved_answer_name_reversed[SBUFF];
-        nullTerminator = strchr(recievedBuffer + offset, '\0');
-        nullIndex = nullTerminator - recievedBuffer;
-        memcpy(&recieved_answer_name_reversed, recievedBuffer + offset, nullIndex);
-        recieved_answer_name_reversed[nullIndex -  offset] = '\0';
-        recieved_answer_name_reversed[0] = ' ';
-
-        for (int i = 1; (i < nullIndex) && (recieved_answer_name_reversed[i] != '\0'); i++) {
-            if (recieved_answer_name_reversed[i] < 46) {
-                recieved_answer_name_reversed[i] = '.';
-            }
-        }
-        std::cout << recieved_answer_name_reversed << std::endl;
-        offset = nullIndex + 1;
-
-
-    } else if (recieved_answer_data_length == 4) {
-        std::cout << std::dec << (((int)recievedBuffer[offset] < 0) ? ((int)recievedBuffer[offset] + 256) : (int)recievedBuffer[offset]) << ".";
-        std::cout << std::dec << (((int)recievedBuffer[offset + 1] < 0) ? ((int)recievedBuffer[offset + 1] + 256) : (int)recievedBuffer[offset + 1]) << ".";
-        std::cout << std::dec << (((int)recievedBuffer[offset + 2] < 0) ? ((int)recievedBuffer[offset + 2] + 256) : (int)recievedBuffer[offset + 2]) << ".";
-        std::cout << std::dec << (((int)recievedBuffer[offset + 3] < 0) ? ((int)recievedBuffer[offset + 3] + 256) : (int)recievedBuffer[offset + 3]) << std::endl;
-        offset += 4;
-    } else if (recieved_answer_data_length == 16) {
-        char ipv6_str[INET6_ADDRSTRLEN];
-        struct in6_addr ipv6_address;
-
-        // Kopírování 16 bytů IPv6 adresy do struktury
-        memcpy(&ipv6_address, &recievedBuffer[offset], 16);
-
-        // Převod IPv6 adresy na textový řetězec
-        if (inet_ntop(AF_INET6, &ipv6_address, ipv6_str, INET6_ADDRSTRLEN) != NULL) {
-            std::cout << ipv6_str << std::endl;
-        } else {
-            std::cerr << "Failed to convert IPv6 address." << std::endl;
-        }
-        offset += 16;
-    } else {
-        std::cerr << "Bad address length" << std::endl;
-    }
     std::cout << "Authority section (0)" << std::endl;
     std::cout << "Additional section (0)" << std::endl;
 
-    printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
+    //printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
     if (DEBUG) {
-        std::cout << "* Closing the client socket ...\n";
+        std::cout << "* A pohádky byl konec :) *\n";
     }
     exit(EXIT_SUCCESS);
 }
