@@ -57,7 +57,7 @@ struct dns_answer {
     uint16_t dnsclass;      // Třída záznamu (většinou IN pro Internet)
     uint32_t ttl;           // Doba platnosti (TTL)
     uint16_t datalength;    // Délka datového pole
-    std::vector<uint8_t> data; // Skutečná data záznamu (změnlivá délka)
+    std::string data; // Skutečná data záznamu (změnlivá délka)
 };
 
 struct dns_authority {
@@ -65,7 +65,7 @@ struct dns_authority {
     uint16_t type;            // Typ záznamu (např. NS)
     uint16_t dnsClass;        // Třída záznamu (např. IN)
     uint32_t ttl;             // TTL (čas života záznamu)
-    std::vector<uint8_t> data; // Data autoritativního záznamu
+    std::string data; // Data autoritativního záznamu
 };
 
 struct dns_additional {
@@ -73,7 +73,7 @@ struct dns_additional {
     uint16_t type;            // Typ záznamu (např. A, AAAA)
     uint16_t dnsClass;        // Třída záznamu (např. IN)
     uint32_t ttl;             // TTL (čas života záznamu)
-    std::vector<uint8_t> data; // Data doplňujícího záznamu
+    std::string data; // Data doplňujícího záznamu
 };
 
 #define IP_ADDR "127.0.0.1"
@@ -304,8 +304,78 @@ std::string get_DN(char* buffer, int& offset){
 
     return recieved_question_name;
 }
+
+std::string Get_DN(char* buffer, int& offset) {
+    std::string ret;
+    uint16_t pointer;
+
+    memcpy(&pointer, buffer + offset, sizeof(uint16_t));
+    pointer = ntohs(pointer);
+
+    if (pointer >> 14 == 3) {
+        int tmp = offset;
+        offset = (pointer & 0x3FFF);
+
+        ret = get_DN(buffer, offset);
+
+        offset = tmp + 2;
+
+    } else {
+        ret = get_DN(buffer, offset);
+    }
+
+    return ret;
+}
+
+std::string GET_DN(char* buffer, int& offset) {
+    std::string ret;
+    uint16_t pointer;
+    uint8_t label_length;
+
+
+
+    while (true) {
+        memcpy(&pointer, buffer + offset, sizeof(uint16_t));
+        pointer = ntohs(pointer);
+        if (pointer >> 14 == 3) {
+            int tmp = offset;
+            offset = (pointer & 0x3FFF);
+
+            std::string tmp_string = GET_DN(buffer, offset);
+            if(!ret.empty()) {
+                tmp_string[0] = '.';
+            }
+            ret += tmp_string;
+
+            offset = tmp + 2;
+            return ret;
+        }
+        label_length = buffer[offset];
+
+        // Pokud je délka labelu 0, znamená to konec doménového jména.
+        if (label_length == 0) {
+            offset++; // Přeskočíme nulový label.
+            return ret;
+        }
+
+        // Pokud máme nějaké jméno předchozí, přidáme tečku.
+        if (!ret.empty()) {
+            ret += '.';
+        }
+
+        // Projdeme label a přidáme ho k dekódovanému jménu.
+        for (int i = 1; i <= label_length; i++) {
+            ret += buffer[offset + i];
+        }
+
+        offset += label_length + 1; // Přeskočíme label a délku.
+    }
+
+    return ret;
+}
+
 void get_question(dns_question& question, char* buffer, int& offset) {
-    question.name = get_DN(buffer, offset);
+    question.name = Get_DN(buffer, offset);
     memcpy(&question.dnstype, buffer + offset, sizeof(uint16_t));
     offset += sizeof(uint16_t);
     memcpy(&question.dnsclass, buffer + offset, sizeof(uint16_t));
@@ -315,23 +385,41 @@ void get_question(dns_question& question, char* buffer, int& offset) {
     question.dnsclass = ntohs(question.dnsclass);
 }
 
-void get_answer(dns_answer& answer, char* buffer, int& offset) {
-    uint16_t pointer;
-    memcpy(&pointer, buffer + offset, sizeof(uint16_t));
-    pointer = ntohs(pointer);
+std::string get_answer_data(dns_answer& answer, char* buffer, int& offset) {
+    std::string ret;
 
-    if (pointer >> 14 == 3) {
-        int tmp = offset;
-        offset = (pointer & 0x3FFF);
+    if ((answer.dnstype == 1) && (answer.datalength == 4)) {
+        ret = std::to_string(((int)buffer[offset] < 0) ? ((int)buffer[offset] + 256) : (int)buffer[offset]) + "."
+                + std::to_string(((int)buffer[offset + 1] < 0) ? ((int)buffer[offset + 1] + 256) : (int)buffer[offset + 1]) + "."
+                + std::to_string(((int)buffer[offset + 2] < 0) ? ((int)buffer[offset + 2] + 256) : (int)buffer[offset + 2]) + "."
+                + std::to_string(((int)buffer[offset + 3] < 0) ? ((int)buffer[offset + 3] + 256) : (int)buffer[offset + 3]);
+        offset += 4;
+    } else if ((answer.dnstype == 28) && (answer.datalength == 16))  {
+        char ipv6_str[INET6_ADDRSTRLEN];
+        struct in6_addr ipv6_address;
 
-        answer.name = get_DN(buffer, offset);
+        // Kopírování 16 bytů IPv6 adresy do struktury
+        memcpy(&ipv6_address, &buffer[offset], 16);
 
-        offset = tmp + 2;
-
-    }else {
-        answer.name = get_DN(buffer, offset);
+        // Převod IPv6 adresy na textový řetězec
+        if (inet_ntop(AF_INET6, &ipv6_address, ipv6_str, INET6_ADDRSTRLEN) != NULL) {
+            ret = ipv6_str;
+        } else {
+            std::cerr << "Failed to convert IPv6 address." << std::endl;
+        }
+        offset += 16;
+    } else if ((answer.dnstype == 5) || (answer.dnstype == 2)) {
+        ret = GET_DN(buffer, offset);
+        //ret += '\n';
+    } else {
+        std::cerr << "Bad address length" << std::endl;
     }
 
+    return ret;
+}
+
+void get_answer(dns_answer& answer, char* buffer, int& offset) {
+    answer.name = GET_DN(buffer, offset);
     memcpy(&answer.dnstype, buffer + offset, sizeof(uint16_t));
     answer.dnstype = ntohs(answer.dnstype);
     offset += sizeof(uint16_t);
@@ -347,7 +435,7 @@ void get_answer(dns_answer& answer, char* buffer, int& offset) {
     memcpy(&answer.datalength, buffer + offset, sizeof(uint16_t));
     offset += sizeof(uint16_t);
     answer.datalength = ntohs(answer.datalength);
-
+    answer.data = get_answer_data(answer, buffer, offset);
 }
 
 void PrintQuestionType_Class(uint16_t dnstype, uint16_t dnsclass) {
@@ -385,9 +473,10 @@ void PrintQuestionType_Class(uint16_t dnstype, uint16_t dnsclass) {
 }
 
 void PrintRecievedAddress(char* buffer, int& offset, uint16_t recieved_answer_data_length, uint16_t recieved_answer_type) {
-    if(recieved_answer_type == 12) {
+    //TODO what about other types? like CNAME? (check type and use get_DN)
+    if((recieved_answer_type == 12) || (recieved_answer_type == 5)) {
         //reversed search
-        std::cout << get_DN(buffer, offset) << std::endl;
+        std::cout << Get_DN(buffer, offset) << std::endl;
 
     } else if (recieved_answer_data_length == 4) {
         std::cout << std::dec << (((int)buffer[offset] < 0) ? ((int)buffer[offset] + 256) : (int)buffer[offset]) << ".";
@@ -476,21 +565,47 @@ int main(int argc, char **argv) {
     std::cout << std::endl;
 
 
-    dns_answer recieved_answer {};
-    get_answer(recieved_answer, recievedBuffer, offset);
+    std::cout << "Answer section (" << recieved_header.ancount << ")" << std::endl;
 
-    std::cout << "Answer section (1)" << std::endl;
-    std::cout << recieved_answer.name << ", ";
-    PrintQuestionType_Class(recieved_answer.dnstype, recieved_answer.dnsclass);
-    std::cout << ", " << recieved_answer.ttl << ", ";
-    PrintRecievedAddress(recievedBuffer, offset, recieved_answer.datalength, recieved_answer.dnstype);
+    dns_answer *recieved_answer_array = new dns_answer[recieved_header.ancount];
 
-    //printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
+    for(int i = 0; i < recieved_header.ancount; i++) {
+        get_answer(recieved_answer_array[i], recievedBuffer, offset);
+        std::cout << recieved_answer_array[i].name << ", ";
+        PrintQuestionType_Class(recieved_answer_array[i].dnstype, recieved_answer_array[i].dnsclass);
+        std::cout << ", " << recieved_answer_array[i].ttl << ", ";
+        std::cout << recieved_answer_array[i].data << std::endl;
+    }
 
-    std::cout << "Authority section (0)" << std::endl;
-    std::cout << "Additional section (0)" << std::endl;
+    std::cout << "Authority section (" << recieved_header.nscount << ")" << std::endl;
 
-    //printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
+    dns_answer *recieved_authority_array = new dns_answer[recieved_header.nscount];
+
+    for(int i = 0; i < recieved_header.nscount; i++) {
+        get_answer(recieved_authority_array[i], recievedBuffer, offset);
+        std::cout << recieved_authority_array[i].name << ", ";
+        PrintQuestionType_Class(recieved_authority_array[i].dnstype, recieved_authority_array[i].dnsclass);
+        std::cout << ", " << recieved_authority_array[i].ttl << ", ";
+        std::cout << recieved_authority_array[i].data << std::endl;
+    }
+
+    std::cout << "Additional section (" << recieved_header.arcount << ")" << std::endl;
+
+    dns_answer *recieved_additional_array = new dns_answer[recieved_header.arcount];
+
+    for(int i = 0; i < recieved_header.arcount; i++) {
+        get_answer(recieved_additional_array[i], recievedBuffer, offset);
+        std::cout << recieved_additional_array[i].name << ", ";
+        PrintQuestionType_Class(recieved_additional_array[i].dnstype, recieved_additional_array[i].dnsclass);
+        std::cout << ", " << recieved_additional_array[i].ttl << ", ";
+        std::cout << recieved_additional_array[i].data << std::endl;
+    }
+
+    printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
+    delete[] recieved_answer_array;
+    delete[] recieved_authority_array;
+    delete[] recieved_additional_array;
+
     if (DEBUG) {
         std::cout << "* A pohádky byl konec :) *\n";
     }
