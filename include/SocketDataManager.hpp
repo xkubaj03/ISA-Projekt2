@@ -8,8 +8,8 @@
 
 #include "Param.hpp"
 
-#include<sys/socket.h>
-#include<unistd.h>  //close
+#include<sys/socket.h>  //socket
+#include<unistd.h>      //close
 #include<arpa/inet.h>   //inet_addr
 #include<netinet/in.h>  //sockaddr_in
 
@@ -19,7 +19,7 @@ class SocketDataManager {
 private:
     struct sockaddr_in server;
     int sock;
-    ssize_t sent_bytes = -1;
+    ssize_t sent_bytes;
     ssize_t bytes_received;
 
 public:
@@ -35,8 +35,8 @@ public:
             std::cerr << "socket() failed\n";
             exit(1);
         }
-
-        setServer(inet_addr(helper.getIP(param.getSParam()).c_str()),
+    //TODO set server musí zvládnout IPV4,6 a DN
+        setServer(inet_addr(helper.get_IPv4(param.getSParam()).c_str()),
                   AF_INET,
                   htons(param.getPParam())
         );

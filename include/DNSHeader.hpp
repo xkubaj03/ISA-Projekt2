@@ -28,7 +28,6 @@ private:
     }
 
 public:
-
     Header(Parameters param) {
         setId(0x1234);
 

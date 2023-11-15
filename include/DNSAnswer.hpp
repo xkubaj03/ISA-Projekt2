@@ -22,7 +22,7 @@ private:
 public:
     Answer(char *buffer, int &offset) {
         Helper helper;
-        setName(helper.GET_DN(buffer, offset));
+        setName(helper.get_DN(buffer, offset));
 
         memcpy(&this->dnstype, buffer + offset, sizeof(uint16_t));
         offset += sizeof(uint16_t);
@@ -88,26 +88,28 @@ private:
                     ((int) buffer[offset + 2] < 0) ? ((int) buffer[offset + 2] + 256) : (int) buffer[offset + 2]) + "."
                   + std::to_string(
                     ((int) buffer[offset + 3] < 0) ? ((int) buffer[offset + 3] + 256) : (int) buffer[offset + 3]);
+
             offset += 4;
+
         } else if ((this->getDnsType() == 28) && (this->getDataLength() == 16)) {
             char ipv6_str[INET6_ADDRSTRLEN];
             struct in6_addr ipv6_address;
 
-            // Kopírování 16 bytů IPv6 adresy do struktury
             memcpy(&ipv6_address, &buffer[offset], 16);
 
-            // Převod IPv6 adresy na textový řetězec
             if (inet_ntop(AF_INET6, &ipv6_address, ipv6_str, INET6_ADDRSTRLEN) != NULL) {
                 ret = ipv6_str;
+
             } else {
                 std::cerr << "Failed to convert IPv6 address." << std::endl;
             }
             offset += 16;
-        } else if ((this->getDnsType() == 5) || (this->getDnsType() == 2)) {
-            ret = helper.GET_DN(buffer, offset);
-            //ret += '\n';
+
+        } else if ((this->getDnsType() == 5) || (this->getDnsType() == 2) || (this->getDnsType() == 12)) {
+            ret = helper.get_DN(buffer, offset);
+
         } else {
-            std::cerr << "Bad address length" << std::endl;
+            std::cerr << "Error while decoding data section: invalid data format" << std::endl;
         }
 
         return ret;

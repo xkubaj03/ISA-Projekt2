@@ -5,8 +5,7 @@
  */
 
 #include "Param.hpp"
-#include <string.h>
-#include <arpa/inet.h>
+#include <arpa/inet.h>  //inet_addr
 
 class Question {
 private:
@@ -14,17 +13,19 @@ private:
     uint16_t qtype;
     uint16_t qclass;    /* The QCLASS (1 = IN) */
 
-
-    Question (Question *question) {
+    explicit Question (Question *question) {
         Helper helper;
         setQname(helper.encodeDirect(question->getQname()));
         setQname((this->getQname().substr(0, this->getQname().length())));
         setQtype(htons(question->getQtype()));
         setQclass(htons(question->getQclass()));
+
+        //std::cout << "Reverse: \"" << this->getQname() << "\"" << std::endl;
+        //helper.printStringAsHex(this->getQname());
     }
 
 public:
-    Question (Parameters param) {
+    explicit Question (Parameters param) {
         Helper helper;
         setQclass(1);   /* QCLASS 1=IN */
         setQtype(1);    /* QTYPE 1=A */
@@ -36,6 +37,7 @@ public:
         if(param.getXParam()) {
             setQtype(12); /* QTYPE 12=PTR */
             setQname(helper.reverseDN(param.getAddressParam()));
+
         }else {
             setQname(param.getAddressParam());
         }
@@ -43,7 +45,7 @@ public:
 
     Question (char* buffer, int& offset) {
         Helper helper;
-        setQname(helper.GET_DN(buffer, offset));
+        setQname(helper.get_DN(buffer, offset));
 
         memcpy(&this->qtype, buffer + offset, sizeof(uint16_t));
         offset += sizeof(uint16_t);
@@ -56,8 +58,14 @@ public:
 
     void ParseQuestionInBuffer (char* buffer, int& offset) {
         Question question(this);
-        memcpy(&buffer[offset], question.getQname().c_str(), question.getQname().length() + 1);
-        offset += question.getQname().length() + 1;
+        int len = question.getQname().length();
+
+        if(this->getQtype() != 12) {
+            len++;
+        }
+
+        memcpy(&buffer[offset], question.getQname().c_str(), len);
+        offset += len;
 
         memcpy(&buffer[offset], &question.qtype, sizeof(uint16_t));
         offset += sizeof(uint16_t);

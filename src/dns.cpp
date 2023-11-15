@@ -9,9 +9,7 @@
 #include "../include/DNSQuestion.hpp"
 #include "../include/DNSAnswer.hpp"
 #include "../include/SocketDataManager.hpp"
-
-#define DEBUG 1
-
+#include <bitset>
 int main(int argc, char **argv) {
     Helper helper;
     Parameters param(argc, argv);
@@ -44,18 +42,29 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < 3; ++i) {
         std::vector<Answer> row;
+
         helper.PrintAns(i, counts[i]);
+
         for (int j = 0; j < counts[i]; ++j) {
-            row.push_back(Answer(dataManager.recvBuffer, dataManager.recvOffset));
+            row.emplace_back(dataManager.recvBuffer, dataManager.recvOffset);
             row[j].PrintAnswer();
         }
+
         AnsAuthAdd.push_back(row);
     }
 
-    helper.printCharArrayAsHex(dataManager.recvBuffer + dataManager.recvOffset,
-                               dataManager.getBytesReceived() - dataManager.recvOffset);
+
+    if((uint16_t)(recieved_header.getFlags() << 15) == 0){
+        std::cout << std:: endl << "Packet ok" << std::endl;
+        Helper::printCharArrayAsHex(dataManager.recvBuffer + dataManager.recvOffset,
+                                    dataManager.getBytesReceived() - dataManager.recvOffset);
+    }
+    else
+        std::cout << std:: endl << "Malformed packet!!!" << std::endl;
 
 
+    /*Helper::printCharArrayAsHex(dataManager.recvBuffer,
+                               dataManager.getBytesReceived());*/
     std::cout << "* A pohádky byl konec :) *\n";
 
     exit(EXIT_SUCCESS);

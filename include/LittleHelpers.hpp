@@ -6,11 +6,11 @@
 #ifndef LittleHelpers_HPP
 #define LittleHelpers_HPP
 
-#include <iomanip>  //printStringAsHex
-#include<netdb.h>   //Gethostbyname
+#include <iomanip>      //printStringAsHex
+#include<netdb.h>       //Gethostbyname
 #include<arpa/inet.h>   //inet_ntop
 #include <iostream>
-#include <string.h>
+#include <string.h>     //string
 
 class Helper {
 public:
@@ -18,15 +18,15 @@ public:
         std::cout << "Usage: ./dns -s server [-r] [-x] [-6] [-p port] name" << std::endl;
     }
 
-    void printCharArrayAsHex(const char *array, std::size_t length) {
+    static void printCharArrayAsHex(const char *array, std::size_t length) {
         for (std::size_t i = 0; i < length; ++i) {
             std::cout << std::hex << std::setw(2) << std::setfill('0')
                       << static_cast<int>(static_cast<unsigned char>(array[i])) << " ";
         }
-        std::cout << std::dec << std::endl; // Nastaví zpět na desítkový formát
+        std::cout << std::dec << std::endl;
     }
 
-    void printStringAsHex(const std::string &str) {
+    static void printStringAsHex(const std::string &str) {
         for (char c: str) {
             std::cout << std::hex << std::setw(2) << std::setfill('0')
                       << static_cast<int>(static_cast<unsigned char>(c))
@@ -35,7 +35,7 @@ public:
         std::cout << std::dec << std::endl;
     }
 
-    std::string GET_DN(char *buffer, int &offset) {
+    std::string get_DN(char *buffer, int &offset) {
         std::string ret;
         uint16_t pointer;
         uint8_t label_length;
@@ -47,7 +47,7 @@ public:
                 int tmp = offset;
                 offset = (pointer & 0x3FFF);
 
-                std::string tmp_string = GET_DN(buffer, offset);
+                std::string tmp_string = get_DN(buffer, offset);
                 if (!ret.empty()) {
                     tmp_string[0] = '.';
                 }
@@ -78,7 +78,7 @@ public:
         }
     }
 
-    std::string getIP(std::string name) {
+    std::string get_IPv4(std::string name) {
         struct hostent *host_info;
 
         host_info = gethostbyname(name.c_str());
@@ -92,6 +92,38 @@ public:
         inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
 
         return ip;
+    }
+
+    std::string get_IP(const std::string &name, int family = AF_UNSPEC) {
+        struct addrinfo hints, *result, *rp;
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = family;
+
+        int ret = getaddrinfo(name.c_str(), nullptr, &hints, &result);
+        if (ret != 0) {
+            std::cerr << "getaddrinfo error: " << gai_strerror(ret) << std::endl;
+            exit(1);
+        }
+
+        for (rp = result; rp != nullptr; rp = rp->ai_next) {
+            if (rp->ai_family == AF_INET) { // IPv4
+                struct sockaddr_in *ipv4 = (struct sockaddr_in *)rp->ai_addr;
+                char ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &(ipv4->sin_addr), ip, INET_ADDRSTRLEN);
+                freeaddrinfo(result);
+                return ip;
+            } else if (rp->ai_family == AF_INET6) { // IPv6
+                struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)rp->ai_addr;
+                char ip[INET6_ADDRSTRLEN];
+                inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip, INET6_ADDRSTRLEN);
+                freeaddrinfo(result);
+                return ip;
+            }
+        }
+
+        freeaddrinfo(result);
+        std::cerr << "No valid IP address found for the given hostname." << std::endl;
+        exit(1);
     }
 
     std::string encodeDirect(std::string hostname) {
@@ -121,7 +153,7 @@ public:
     }
 
     std::string reverseDN(std::string hostname) {
-        hostname = getIP(hostname);
+        hostname = get_IPv4(hostname);
         std::string ret;
 
         int pos;
