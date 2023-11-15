@@ -8,6 +8,7 @@
 
 #include <iomanip>  //printStringAsHex
 #include<netdb.h>   //Gethostbyname
+#include<arpa/inet.h>   //inet_ntop
 #include <iostream>
 #include <string.h>
 
@@ -27,13 +28,14 @@ public:
 
     void printStringAsHex(const std::string &str) {
         for (char c: str) {
-            std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(c))
+            std::cout << std::hex << std::setw(2) << std::setfill('0')
+                      << static_cast<int>(static_cast<unsigned char>(c))
                       << " ";
         }
         std::cout << std::dec << std::endl;
     }
 
-    std::string GET_DN(char* buffer, int& offset) {
+    std::string GET_DN(char *buffer, int &offset) {
         std::string ret;
         uint16_t pointer;
         uint8_t label_length;
@@ -46,7 +48,7 @@ public:
                 offset = (pointer & 0x3FFF);
 
                 std::string tmp_string = GET_DN(buffer, offset);
-                if(!ret.empty()) {
+                if (!ret.empty()) {
                     tmp_string[0] = '.';
                 }
                 ret += tmp_string;
@@ -125,7 +127,7 @@ public:
         int pos;
         for (int i = 0; i < 3; i++) {
             pos = hostname.rfind('.');
-            ret.append(hostname, pos+1);
+            ret.append(hostname, pos + 1);
             ret.append(".");
             hostname = hostname.substr(0, pos);
         }
@@ -134,7 +136,7 @@ public:
         return ret;
     }
 
-    void printHeaderInfo(uint16_t flags){
+    void printHeaderInfo(uint16_t flags) {
         std::cout << "Authoritative: ";
         if (flags & (1 << 10)) {
             std::cout << "Yes";

@@ -3,19 +3,12 @@
  *  Autor: Josef Kuba
  *  Login: xkubaj03
  */
-
-#include<sys/socket.h>
-#include<unistd.h>  //close
-
-#include<arpa/inet.h>   //inet_addr
-#include<netinet/in.h>  //sockaddr_in
 #include <vector>
 
 #include "../include/DNSHeader.hpp"
 #include "../include/DNSQuestion.hpp"
 #include "../include/DNSAnswer.hpp"
-
-#define BUFFER 1024
+#include "../include/SocketDataManager.hpp"
 
 #define DEBUG 1
 
@@ -23,54 +16,22 @@ int main(int argc, char **argv) {
     Helper helper;
     Parameters param(argc, argv);
 
-    char dns_packet[BUFFER];
-    int offset = 0;
+    SocketDataManager dataManager(param);
 
     Header header(param);
     Question question(param);
 
-    header.ParseHeaderInBuffer(dns_packet, offset);
-    question.ParseQuestionInBuffer(dns_packet, offset);
+    header.ParseHeaderInBuffer(dataManager.sendBuffer, dataManager.sendOffset);
+    question.ParseQuestionInBuffer(dataManager.sendBuffer, dataManager.sendOffset);
 
-    int sock;
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-        std::cerr << "socket() failed\n";
-        exit(1);
-    }
+    dataManager.Send();
+    dataManager.Recieve();
 
-    struct sockaddr_in server;
-    server.sin_addr.s_addr = inet_addr(helper.getIP(param.getSParam()).c_str());
-    server.sin_family = AF_INET;
-    server.sin_port = htons(param.getPParam());
 
-    ssize_t sent_bytes = sendto(sock, dns_packet, offset, 0, (struct sockaddr *) &server, sizeof(server));
-    if (sent_bytes < 0) {
-        std::cerr << "Chyba při odesílání DNS packetu" << std::endl;
-        exit(1);
-    }
-
-    //recieving
-    char recievedBuffer[BUFFER];
-    offset = 0;
-
-    ssize_t bytes_received = recvfrom(sock, recievedBuffer, sizeof(recievedBuffer), 0, NULL, NULL);
-    if (bytes_received < 0) {
-        std::cerr << "Chyba při přijímání dat" << std::endl;
-        close(sock);
-        return 1;
-    } else if (bytes_received == 0) {
-        std::cerr << "Vzdálený konec ukončil spojení." << std::endl;
-        close(sock);
-        return 0;
-    }
-    close(sock);
-    //std::cout << "Počet přijatých bytů je: " << bytes_received << std::endl;
-    //printCharArrayAsHex(recievedBuffer, bytes_received);
-
-    Header recieved_header(recievedBuffer, offset);
+    Header recieved_header(dataManager.recvBuffer, dataManager.recvOffset);
     helper.printHeaderInfo(recieved_header.getFlags());
 
-    Question recieved_question(recievedBuffer, offset);
+    Question recieved_question(dataManager.recvBuffer, dataManager.recvOffset);
     recieved_question.PrintQuestion();
 
     std::vector<int> counts = {
@@ -80,21 +41,22 @@ int main(int argc, char **argv) {
     };
 
     std::vector<std::vector<Answer>> AnsAuthAdd;
+
     for (int i = 0; i < 3; ++i) {
         std::vector<Answer> row;
         helper.PrintAns(i, counts[i]);
         for (int j = 0; j < counts[i]; ++j) {
-            row.push_back(Answer(recievedBuffer, offset));
+            row.push_back(Answer(dataManager.recvBuffer, dataManager.recvOffset));
             row[j].PrintAnswer();
         }
         AnsAuthAdd.push_back(row);
     }
 
-    helper.printCharArrayAsHex(recievedBuffer + offset, bytes_received - offset);
+    helper.printCharArrayAsHex(dataManager.recvBuffer + dataManager.recvOffset,
+                               dataManager.getBytesReceived() - dataManager.recvOffset);
 
 
-    if (DEBUG) {
-        std::cout << "* A pohádky byl konec :) *\n";
-    }
+    std::cout << "* A pohádky byl konec :) *\n";
+
     exit(EXIT_SUCCESS);
 }

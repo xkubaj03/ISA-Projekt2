@@ -9,6 +9,7 @@
 #include "LittleHelpers.hpp"
 #include <string.h>
 #include <arpa/inet.h>
+
 class Answer {
 private:
     std::string name;
@@ -19,32 +20,32 @@ private:
     std::string data;
 
 public:
-    Answer(char* buffer, int& offset) {
-            Helper helper;
-            setName(helper.GET_DN(buffer, offset));
+    Answer(char *buffer, int &offset) {
+        Helper helper;
+        setName(helper.GET_DN(buffer, offset));
 
-            memcpy(&this->dnstype, buffer + offset, sizeof(uint16_t));
-            offset += sizeof(uint16_t);
-            this->setDnsType(ntohs(this->getDnsType()));
+        memcpy(&this->dnstype, buffer + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+        this->setDnsType(ntohs(this->getDnsType()));
 
-            memcpy(&this->dnsclass, buffer + offset, sizeof(uint16_t));
-            offset += sizeof(uint16_t);
-            this->setDnsClass(ntohs(this->getDnsClass()));
+        memcpy(&this->dnsclass, buffer + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+        this->setDnsClass(ntohs(this->getDnsClass()));
 
-            memcpy(&this->ttl, buffer + offset, sizeof(uint32_t));
-            offset += sizeof(uint32_t);
-            this->setTtl(ntohl(this->getTtl()));
+        memcpy(&this->ttl, buffer + offset, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+        this->setTtl(ntohl(this->getTtl()));
 
-            memcpy(&this->datalength, buffer + offset, sizeof(uint16_t));
-            offset += sizeof(uint16_t);
-            this->setDataLength(ntohs(this->getDataLength()));
+        memcpy(&this->datalength, buffer + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+        this->setDataLength(ntohs(this->getDataLength()));
 
-            this->setData(get_answer_data(buffer, offset));
-        }
+        this->setData(get_answer_data(buffer, offset));
+    }
 
     void PrintAnswer() {
         Helper helper;
-        std::cout << this->getName()<< ", ";
+        std::cout << this->getName() << ", ";
         helper.PrintQuestionType_Class(this->getDnsType(), this->getDnsClass());
         std::cout << ", " << this->getTtl() << ", ";
         std::cout << this->getData() << std::endl;
@@ -75,17 +76,20 @@ public:
     }
 
 private:
-    std::string get_answer_data( char* buffer, int& offset) {
+    std::string get_answer_data(char *buffer, int &offset) {
         Helper helper;
         std::string ret;
 
         if ((this->getDnsType() == 1) && (this->getDataLength() == 4)) {
-            ret = std::to_string(((int)buffer[offset] < 0) ? ((int)buffer[offset] + 256) : (int)buffer[offset]) + "."
-                  + std::to_string(((int)buffer[offset + 1] < 0) ? ((int)buffer[offset + 1] + 256) : (int)buffer[offset + 1]) + "."
-                  + std::to_string(((int)buffer[offset + 2] < 0) ? ((int)buffer[offset + 2] + 256) : (int)buffer[offset + 2]) + "."
-                  + std::to_string(((int)buffer[offset + 3] < 0) ? ((int)buffer[offset + 3] + 256) : (int)buffer[offset + 3]);
+            ret = std::to_string(((int) buffer[offset] < 0) ? ((int) buffer[offset] + 256) : (int) buffer[offset]) + "."
+                  + std::to_string(
+                    ((int) buffer[offset + 1] < 0) ? ((int) buffer[offset + 1] + 256) : (int) buffer[offset + 1]) + "."
+                  + std::to_string(
+                    ((int) buffer[offset + 2] < 0) ? ((int) buffer[offset + 2] + 256) : (int) buffer[offset + 2]) + "."
+                  + std::to_string(
+                    ((int) buffer[offset + 3] < 0) ? ((int) buffer[offset + 3] + 256) : (int) buffer[offset + 3]);
             offset += 4;
-        } else if ((this->getDnsType() == 28) && (this->getDataLength() == 16))  {
+        } else if ((this->getDnsType() == 28) && (this->getDataLength() == 16)) {
             char ipv6_str[INET6_ADDRSTRLEN];
             struct in6_addr ipv6_address;
 
@@ -109,7 +113,7 @@ private:
         return ret;
     }
 
-    void setName(const std::string& newName) {
+    void setName(const std::string &newName) {
         name = newName;
     }
 
@@ -129,7 +133,7 @@ private:
         datalength = newDataLength;
     }
 
-    void setData(const std::string& newData) {
+    void setData(const std::string &newData) {
         data = newData;
     }
 
