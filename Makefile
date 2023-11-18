@@ -2,21 +2,40 @@
 # Autor: Josef Kuba
 # Login: xkubaj03
 CC=g++
-CFLAGS=-pedantic -Wall -Wextra -g -std=c++11
-LDFLAGS=-lpcap
+CFLAGS=-pedantic -Wall -Wextra -g -std=c++14 $(shell pkg-config --cflags gtest)
+LDFLAGS=-lpcap $(shell pkg-config --libs gtest)
 NAME=dns
-SRC=$(wildcard src/*.cpp)
-HDR=$(wildcard include/*.hpp)
-OBJ=$(SRC:.cpp=.o)
+TEST_SRC=$(wildcard tests/*.cpp)
+TEST_OBJ=$(patsubst tests/%.cpp,obj/%.o,$(TEST_SRC))
+TEST_BIN=$(TEST_OBJ:.o=)
 
-all: $(NAME)
+SRC=$(wildcard src/*.cpp)
+OBJ=$(patsubst src/%.cpp,obj/%.o,$(SRC))
+HDR=$(wildcard include/*.hpp)
+
+.PHONY: all clean test
+
+all: $(NAME) test
 
 $(NAME): $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
-	-rm -f src/*.o
 
-%.o: %.cpp $(HDR)
+obj/%.o: src/%.cpp $(HDR)
+	@mkdir -p obj
 	$(CC) $(CFLAGS) -c $< -o $@
 
+test: $(TEST_BIN)
+	@for test in $(TEST_BIN); do \
+        ./$$test; \
+    done
+
+obj/%.o: tests/%.cpp $(HDR)
+	@mkdir -p obj
+	$(CC) $(CFLAGS) -c $< -o $@
+
+%: obj/%.o
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+
 clean:
-	-rm -f $(NAME) $(OBJ)
+	-rm -f $(NAME) $(OBJ) $(TEST_BIN)
+	-rmdir obj

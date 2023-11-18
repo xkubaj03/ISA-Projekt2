@@ -11,6 +11,7 @@
 #include<arpa/inet.h>   //inet_ntop
 #include <iostream>
 #include <string.h>     //string
+#include <sstream>
 
 class Helper {
 public:
@@ -94,7 +95,25 @@ public:
         return ip;
     }
 
-    std::string get_IP(const std::string &name, int family = AF_UNSPEC) {
+    bool getAddressInfo(const std::string &input, struct sockaddr_storage &addr) {
+        struct addrinfo hints, *res;
+        memset(&hints, 0, sizeof hints);
+
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_DGRAM;
+
+        int status = getaddrinfo(input.c_str(), NULL, &hints, &res);
+        if (status != 0) {
+            std::cerr << "getaddrinfo error: " << gai_strerror(status) << std::endl;
+            return false;
+        }
+
+        memcpy(&addr, res->ai_addr, res->ai_addrlen);
+        freeaddrinfo(res);
+        return true;
+    }
+
+    std::string get_IP2(const std::string &name, int family = AF_UNSPEC) {
         struct addrinfo hints, *result, *rp;
         memset(&hints, 0, sizeof(struct addrinfo));
         hints.ai_family = family;
@@ -107,13 +126,13 @@ public:
 
         for (rp = result; rp != nullptr; rp = rp->ai_next) {
             if (rp->ai_family == AF_INET) { // IPv4
-                struct sockaddr_in *ipv4 = (struct sockaddr_in *)rp->ai_addr;
+                struct sockaddr_in *ipv4 = (struct sockaddr_in *) rp->ai_addr;
                 char ip[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &(ipv4->sin_addr), ip, INET_ADDRSTRLEN);
                 freeaddrinfo(result);
                 return ip;
             } else if (rp->ai_family == AF_INET6) { // IPv6
-                struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)rp->ai_addr;
+                struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *) rp->ai_addr;
                 char ip[INET6_ADDRSTRLEN];
                 inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip, INET6_ADDRSTRLEN);
                 freeaddrinfo(result);
@@ -126,7 +145,26 @@ public:
         exit(1);
     }
 
-    std::string encodeDirect(std::string hostname) {
+    std::string getSIP(const std::string &input, sockaddr_storage &addr) {
+        if (getAddressInfo(input, addr)) {
+            if (addr.ss_family == AF_INET) {
+                struct sockaddr_in *ipv4 = (struct sockaddr_in *) &addr;
+                return inet_ntoa(ipv4->sin_addr);
+            } else if (addr.ss_family == AF_INET6) {
+                struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *) &addr;
+                char ip[INET6_ADDRSTRLEN];
+                inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip, INET6_ADDRSTRLEN);
+                return ip;
+            }
+            std::cerr << "Unsupported address family" << std::endl;
+            exit(1);
+
+        }
+        std::cerr << "Failed to resolve address" << std::endl;
+        exit(1);
+    }
+
+    std::string encodeDN_IPv4(std::string hostname) {
         hostname = "." + hostname;
 
         int dot = 0;
@@ -143,27 +181,22 @@ public:
         }
 
         hostname[dot] = hostname.length() - dot - 1;
-        if (0) {
-            std::cout << "Encoded: ";
-            printStringAsHex(hostname);
-            std::cout << std::endl;
-        }
 
         return hostname;
     }
 
-    std::string reverseDN(std::string hostname) {
-        hostname = get_IPv4(hostname);
+    std::string reverseIPv4Address(std::string address) {
+        address = get_IPv4(address);
         std::string ret;
 
         int pos;
         for (int i = 0; i < 3; i++) {
-            pos = hostname.rfind('.');
-            ret.append(hostname, pos + 1);
+            pos = address.rfind('.');
+            ret.append(address, pos + 1);
             ret.append(".");
-            hostname = hostname.substr(0, pos);
+            address = address.substr(0, pos);
         }
-        ret.append(hostname);
+        ret.append(address);
         ret.append(".in-addr.arpa.");
         return ret;
     }
@@ -238,6 +271,89 @@ public:
                 std::cout << "PrintAns index out of bounds (" << x << ")" << std::endl;
                 break;
         }
+    }
+
+    std::string expandAndReverseIPv6Address(std::string address) {
+        struct in6_addr addr;
+        if (inet_pton(AF_INET6, address.c_str(), &addr) != 1) {
+            return "Invalid IPv6 address";
+        }
+
+        std::stringstream expanded;
+        expanded << std::hex << std::setfill('0');
+        for (int i = 0; i < 8; ++i) {
+            expanded << std::setw(4) << ntohs(addr.s6_addr16[i]);
+            if (i < 7) {
+                expanded << ":";
+            }
+        }
+        /*std::string tmp = "";
+
+        for(int i = 0; i < 39; i++) {
+            if(expanded.str().c_str()[i] == ':') {
+                i++;
+            }
+            tmp = (expanded.str().c_str()[i]) + tmp;
+        }*/
+
+
+        return expanded.str().append(".ip6.arpa.");
+    }
+
+    int checkIPAddressType(const std::string &input) {
+        struct in_addr ipv4Addr;
+        struct in6_addr ipv6Addr;
+
+        if (inet_pton(AF_INET, input.c_str(), &ipv4Addr) == 1) {
+            return AF_INET;
+        }
+
+        if (inet_pton(AF_INET6, input.c_str(), &ipv6Addr) == 1) {
+            return AF_INET6;
+        }
+
+        return 0;
+    }
+
+    std::string encodeIPv6(std::string input) {
+        std::string ret;
+        std ::cout << "Input: " << input << std::endl;
+        for(uint i = 0; i < 39; i++) {
+            if(input[i] != ':') {
+                ret += '\001';
+                ret += input[i];
+            }
+        }
+        ret += "\003ip6\004arpa\000";
+        std::cout << "Ret: " << ret << std::endl;
+
+
+        std::cout << "Encoded: " << ret << std::endl;
+        //printStringAsHex(ret);
+        return ret;
+
+    }
+
+    std::string encodeDN_IPv4_Ipv6(std:: string input) {
+        std::cout << input.length() << std::endl;
+        if(input.length() == 49) {
+            return encodeIPv6(input);
+        }
+
+        return encodeDN_IPv4(input);
+    }
+
+    std::string ReverseIP(std::string address) {
+        int type = checkIPAddressType(address);
+        if (type == 0) {
+            std::cout << "Invalid IP querry address" << std::endl;
+            exit(0);
+        }
+
+        if (type == AF_INET) {
+            return reverseIPv4Address(address);
+        }
+        return expandAndReverseIPv6Address(address);
     }
 };
 

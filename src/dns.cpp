@@ -9,7 +9,7 @@
 #include "../include/DNSQuestion.hpp"
 #include "../include/DNSAnswer.hpp"
 #include "../include/SocketDataManager.hpp"
-#include <bitset>
+
 int main(int argc, char **argv) {
     Helper helper;
     Parameters param(argc, argv);
@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     dataManager.Recieve();
 
 
-    Header recieved_header(dataManager.recvBuffer, dataManager.recvOffset);
+    Header recieved_header(dataManager.recvBuffer, dataManager.recvOffset, dataManager.getBytesReceived());
     helper.printHeaderInfo(recieved_header.getFlags());
 
     Question recieved_question(dataManager.recvBuffer, dataManager.recvOffset);

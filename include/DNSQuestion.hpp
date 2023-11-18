@@ -13,9 +13,9 @@ private:
     uint16_t qtype;
     uint16_t qclass;    /* The QCLASS (1 = IN) */
 
-    explicit Question (Question *question) {
+    explicit Question(Question *question) {
         Helper helper;
-        setQname(helper.encodeDirect(question->getQname()));
+        setQname(helper.encodeDN_IPv4_Ipv6(question->getQname()));
         setQname((this->getQname().substr(0, this->getQname().length())));
         setQtype(htons(question->getQtype()));
         setQclass(htons(question->getQclass()));
@@ -25,25 +25,25 @@ private:
     }
 
 public:
-    explicit Question (Parameters param) {
+    explicit Question(Parameters param) {
         Helper helper;
         setQclass(1);   /* QCLASS 1=IN */
         setQtype(1);    /* QTYPE 1=A */
 
-        if(param.getA6Param()) {
+        if (param.getA6Param()) {
             setQtype(28); /* QTYPE 28=AAAA */
         }
 
-        if(param.getXParam()) {
+        if (param.getXParam()) {
             setQtype(12); /* QTYPE 12=PTR */
-            setQname(helper.reverseDN(param.getAddressParam()));
+            setQname(helper.ReverseIP(param.getAddressParam()));
 
-        }else {
+        } else {
             setQname(param.getAddressParam());
         }
     }
 
-    Question (char* buffer, int& offset) {
+    Question(char *buffer, int &offset) {
         Helper helper;
         setQname(helper.get_DN(buffer, offset));
 
@@ -56,12 +56,13 @@ public:
         this->setQclass(ntohs(this->getQclass()));
     }
 
-    void ParseQuestionInBuffer (char* buffer, int& offset) {
+    void ParseQuestionInBuffer(char *buffer, int &offset) {
         Question question(this);
-        int len = question.getQname().length();
 
-        if(this->getQtype() != 12) {
-            len++;
+        int len = question.getQname().length()+1;
+
+        if (this->getQtype() == 12 && len < 32) {
+            len--;
         }
 
         memcpy(&buffer[offset], question.getQname().c_str(), len);

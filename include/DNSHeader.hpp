@@ -43,7 +43,12 @@ public:
         this->setArCount(0);
     }
 
-    Header(char *buffer, int &offset) {
+    Header(char *buffer, int &offset, ssize_t bytesReceived) {
+        if((long int)(offset + sizeof(Header)) > bytesReceived) {
+            std::cerr << "Not enough data to recieve DNS header" << std::endl;
+            exit(1);
+        }
+
         memcpy(&this->id, buffer + offset, sizeof(uint16_t));
         offset += sizeof(uint16_t);
         this->setId(ntohs(this->getId()));

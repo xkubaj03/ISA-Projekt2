@@ -17,7 +17,8 @@
 
 class SocketDataManager {
 private:
-    struct sockaddr_in server;
+    struct sockaddr_in serverV4;
+    struct sockaddr_in6 serverV6;
     int sock;
     ssize_t sent_bytes;
     ssize_t bytes_received;
@@ -28,33 +29,60 @@ public:
     char recvBuffer[BUFFER];
     int recvOffset = 0;
 
-    SocketDataManager(Parameters param) {
+    explicit SocketDataManager(Parameters param) {
         Helper helper;
-        setSock(socket(AF_INET, SOCK_DGRAM, 0));
+        sockaddr_storage addressInfo;
+        std::string resolvedIP = helper.getSIP(param.getSParam(), addressInfo);
+
+        setSock(socket(addressInfo.ss_family, SOCK_DGRAM, 0));
         if (getSock() == -1) {
             std::cerr << "socket() failed\n";
             exit(1);
         }
-    //TODO set server musí zvládnout IPV4,6 a DN
-        setServer(inet_addr(helper.get_IPv4(param.getSParam()).c_str()),
-                  AF_INET,
-                  htons(param.getPParam())
-        );
+
+        if (addressInfo.ss_family == AF_INET) {
+            this->serverV4.sin_port = htons(param.getPParam());
+            this->serverV4.sin_family = AF_INET;
+            this->serverV4.sin_addr.s_addr = inet_addr(resolvedIP.c_str());
+        } else if (addressInfo.ss_family == AF_INET6) {
+            this->serverV6.sin6_port = htons(param.getPParam());
+            this->serverV6.sin6_family = AF_INET6;
+
+            if (inet_pton(AF_INET6, resolvedIP.c_str(), &this->serverV6.sin6_addr) <= 0) {
+                std::cerr << "Failed to convert IPv6 Address" << std::endl;
+                exit(1);
+            }
+        } else {
+            std::cerr << "Unknown address family" << std::endl;
+            exit(1);
+        }
     }
 
     void Send() {
-        setSentBytes(
-                sendto(
-                        sock,
-                        sendBuffer,
-                        sendOffset,
-                        0,
-                        (struct sockaddr *) &server,
-                        sizeof(server))
-        );
+        if(serverV4.sin_family == AF_INET) {
+            setSentBytes(
+                    sendto(
+                            sock,
+                            sendBuffer,
+                            sendOffset,
+                            0,
+                            (struct sockaddr *) &serverV4,
+                            sizeof(serverV4))
+            );
+        }else {
+            setSentBytes(
+                    sendto(
+                            sock,
+                            sendBuffer,
+                            sendOffset,
+                            0,
+                            (struct sockaddr *) &serverV6,
+                            sizeof(serverV6))
+            );
+        }
 
         if (getSentBytes() < 0) {
-            std::cerr << "Chyba při odesílání DNS packetu" << std::endl;
+            std::cerr << "Chyba při odesílání DNS packetu sendto: "<< getSentBytes() << std::endl;
             exit(1);
         }
     }
@@ -101,12 +129,6 @@ private:
 
     void setBytesReceived(ssize_t bytes_received) {
         this->bytes_received = bytes_received;
-    }
-
-    void setServer(u_int s_addr, sa_family_t family, in_port_t port) {
-        this->server.sin_addr.s_addr = s_addr;
-        this->server.sin_family = family;
-        this->server.sin_port = port;
     }
 
 
