@@ -8,7 +8,7 @@
 
 #include <getopt.h>
 #include <iostream>
-#include "LittleHelpers.hpp"
+#include "Helper.hpp"
 
 class Parameters {
     // Simple class for parsing and storing parameters

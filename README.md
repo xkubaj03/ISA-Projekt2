@@ -32,9 +32,9 @@ Dále vypisuje jednotlivé sekce a záznamy v odpovědi. Pro každou sekci se uv
 
 Authoritative: No, Recursive: Yes, Truncated: No  
 Question section (1)  
- www.fit.vut.cz., A, IN  
+ www.fit.vut.cz, A, IN  
 Answer section (1)  
- www.fit.vut.cz., A, IN, 14400, 147.229.9.26  
+ www.fit.vut.cz, A, IN, 14400, 147.229.9.26  
 Authority section (0)  
 Additional section (0)  
 
@@ -42,10 +42,10 @@ Additional section (0)
 
 Authoritative: No, Recursive: Yes, Truncated: No  
 Question section (1)  
-www.github.com., A, IN  
+www.github.com, A, IN  
 Answer section (2)  
-www.github.com., CNAME, IN, 3600, github.com.  
-github.com., A, IN, 60, 140.82.121.3  
+www.github.com, CNAME, IN, 3600, github.com  
+github.com, A, IN, 60, 140.82.121.3  
 Authority section (0)  
 Additional section (0)  
 

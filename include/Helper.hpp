@@ -3,8 +3,8 @@
  *  Autor: Josef Kuba
  *  Login: xkubaj03
  */
-#ifndef LittleHelpers_HPP
-#define LittleHelpers_HPP
+#ifndef Helper_HPP
+#define Helper_HPP
 
 #include <iomanip>      //printStringAsHex
 #include<netdb.h>       //Gethostbyname
@@ -297,4 +297,4 @@ public:
     }
 };
 
-#endif //LittleHelpers_HPP
+#endif //Helper_HPP

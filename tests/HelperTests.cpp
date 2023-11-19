@@ -3,7 +3,7 @@
  *  Autor: Josef Kuba
  *  Login: xkubaj03
  */
-#include "../include/LittleHelpers.hpp"
+#include "../include/Helper.hpp"
 
 #include <iostream>
 #include <gtest/gtest.h>

@@ -6,7 +6,7 @@
 #ifndef DNSA_HPP
 #define DNSA_HPP
 
-#include "LittleHelpers.hpp"
+#include "Helper.hpp"
 #include <string.h>
 #include <arpa/inet.h>
 
