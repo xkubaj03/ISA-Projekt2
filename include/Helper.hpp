@@ -237,12 +237,18 @@ public:
         expanded << std::hex << std::setfill('0');
         for (int i = 0; i < 8; ++i) {
             expanded << std::setw(4) << ntohs(addr.s6_addr16[i]);
-            if (i < 7) {
-                expanded << ":";
-            }
         }
 
-        return expanded.str().append(".ip6.arpa.");
+        std::string ret = expanded.str();
+        int n = ret.length();
+
+        for (int i = 0; i < n / 2; i++) {
+            std::swap(ret[i], ret[n - i - 1]);
+        }
+
+        ret.append(".ip6.arpa.");
+
+        return ret;
     }
 
     int checkIPAddressType(const std::string &input) {
@@ -263,20 +269,17 @@ public:
     std::string encodeIPv6(std::string input) {
         std::string ret;
 
-        for(uint i = 0; i < 39; i++) {
-            if(input[i] != ':') {
-                ret += '\001';
-                ret += input[i];
-            }
+        for(uint i = 0; i < 32; i++) {
+            ret += "\001";
+            ret += input[i];
         }
         ret += "\003ip6\004arpa\000";
 
         return ret;
-
     }
 
     std::string encodeDN_IPv4_Ipv6(std:: string input) {
-        if(input.length() == 49) {
+        if(input.length() == 42) {
             return encodeIPv6(input);
         }
 
