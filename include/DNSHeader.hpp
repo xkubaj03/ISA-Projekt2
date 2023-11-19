@@ -80,6 +80,26 @@ public:
         offset += sizeof(Header);
     }
 
+    void printDNSReplyCode() {
+        switch (this->flags & 0x000F) {
+            case 1:
+                std::cerr << "Format error: The query has a format error." << std::endl;
+                break;
+            case 2:
+                std::cerr << "Server failure: The DNS server encountered a failure." << std::endl;
+                break;
+            case 3:
+                std::cerr << "Name error: The domain name does not exist." << std::endl;
+                break;
+            case 4:
+                std::cerr << "Not Implemented: The DNS server does not support the requested query." << std::endl;
+                break;
+            case 5:
+                std::cerr << "Refused: The DNS server refused to respond to the query." << std::endl;
+                break;
+        }
+    }
+
     uint16_t getId() const { return id; }
 
     uint16_t getFlags() const { return flags; }

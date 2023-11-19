@@ -82,7 +82,7 @@ public:
         }
 
         if (getSentBytes() < 0) {
-            std::cerr << "Chyba při odesílání DNS packetu sendto: "<< getSentBytes() << std::endl;
+            std::cerr << "Error while sending data - sendto: "<< getSentBytes() << std::endl;
             exit(1);
         }
     }
@@ -99,7 +99,7 @@ public:
         );
 
         if (getBytesReceived() < 0) {
-            std::cerr << "Error while receiving data" << std::endl;
+            std::cerr << "Error while receiving data"    << std::endl;
             close(getSock());
             exit(1);
 

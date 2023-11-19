@@ -44,8 +44,8 @@ public:
 
                 case 'p':
                     if (std::stoi(optarg) < 0 || std::stoi(optarg) > 65535) {
-                        std::cout << "Wrong port number! (0 - 65535)\n";
-                        exit(0);
+                        std::cerr << "Wrong port number! (0 - 65535)\n";
+                        exit(1);
                     }
 
                     this->setPParam(std::stoi(optarg));
@@ -54,7 +54,7 @@ public:
                 default:
                     std::cerr << "Unknown parameter: " << static_cast<char>(optopt) << std::endl;
                     helper.printUsage();
-                    exit(0);
+                    exit(1);
             }
         }
 
@@ -64,19 +64,19 @@ public:
         } else {
             std::cerr << "Missing targeted address!" << std::endl;
             helper.printUsage();
-            exit(0);
+            exit(1);
         }
 
         if (this->getSParam().empty()) {
             std::cerr << "Requiered parameter -s with argument" << std::endl;
             helper.printUsage();
-            exit(0);
+            exit(1);
         }
 
         if (this->getA6Param() && this->getXParam()) {
             std::cerr << "Parameters -x and -6 can't be used together" << std::endl;
             helper.printUsage();
-            exit(0);
+            exit(1);
         }
     }
 

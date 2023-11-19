@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <gtest/gtest.h>
+#include <cstdlib> //system()
 
 TEST(ReverseIPTest, IPv4) {
     Helper helper;
@@ -24,6 +25,33 @@ TEST(EncodeIPTest, IPv4) {
     Helper helper;
     std::string encodedIP = helper.encodeDN_IPv4_Ipv6("147.229.9.26.in-addr.arpa.");
     EXPECT_EQ("\003147\003229\0019\00226\007in-addr\004arpa", encodedIP.substr(0, encodedIP.length() - 1));
+}
+
+TEST(FunctionalTest, dns) {
+    const char* command = "./dns";
+
+    FILE* pipe = popen(command, "r");
+    if (!pipe) {
+        std::cerr << "pipe error" << std::endl;
+        exit(1);
+    }
+
+    char buffer[128];
+    std::string output = "";
+
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        output += buffer;
+    }
+
+    pclose(pipe);
+
+    if (output.empty()) {
+        std::cout << "Program nemá žádný výstup." << std::endl;
+    } else {
+        std::cout << "Výstup programu:\n" << output << std::endl;
+    }
+
+
 }
 
 int main(int argc, char **argv) {

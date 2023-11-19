@@ -27,6 +27,7 @@ int main(int argc, char **argv) {
 
 
     Header recieved_header(dataManager.recvBuffer, dataManager.recvOffset, dataManager.getBytesReceived());
+    recieved_header.printDNSReplyCode();
     helper.printHeaderInfo(recieved_header.getFlags());
 
     Question recieved_question(dataManager.recvBuffer, dataManager.recvOffset);
@@ -55,17 +56,13 @@ int main(int argc, char **argv) {
 
 
     if((uint16_t)(recieved_header.getFlags() << 15) == 0){
-        std::cout << std:: endl << "Packet ok" << std::endl;
         Helper::printCharArrayAsHex(dataManager.recvBuffer + dataManager.recvOffset,
                                     dataManager.getBytesReceived() - dataManager.recvOffset);
     }
-    else
-        std::cout << std:: endl << "Malformed packet!!!" << std::endl;
 
 
     /*Helper::printCharArrayAsHex(dataManager.recvBuffer,
                                dataManager.getBytesReceived());*/
-    std::cout << "* A pohádky byl konec :) *\n";
 
     exit(EXIT_SUCCESS);
 }

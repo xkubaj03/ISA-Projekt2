@@ -16,7 +16,7 @@
 class Helper {
 public:
     static void printUsage() {
-        std::cout << "Usage: ./dns -s server [-r] [-x] [-6] [-p port] name" << std::endl;
+        std::cerr << "Usage: ./dns -s server [-r] [-x] [-6] [-p port] name" << std::endl;
     }
 
     static void printCharArrayAsHex(const char *array, std::size_t length) {
@@ -186,7 +186,8 @@ public:
     }
 
     std::string reverseIPv4Address(std::string address) {
-        address = get_IPv4(address);
+        sockaddr_storage addr;
+        address = getSIP(address, addr);
         std::string ret;
 
         int pos;
@@ -287,15 +288,6 @@ public:
                 expanded << ":";
             }
         }
-        /*std::string tmp = "";
-
-        for(int i = 0; i < 39; i++) {
-            if(expanded.str().c_str()[i] == ':') {
-                i++;
-            }
-            tmp = (expanded.str().c_str()[i]) + tmp;
-        }*/
-
 
         return expanded.str().append(".ip6.arpa.");
     }
@@ -317,7 +309,7 @@ public:
 
     std::string encodeIPv6(std::string input) {
         std::string ret;
-        std ::cout << "Input: " << input << std::endl;
+
         for(uint i = 0; i < 39; i++) {
             if(input[i] != ':') {
                 ret += '\001';
@@ -325,17 +317,12 @@ public:
             }
         }
         ret += "\003ip6\004arpa\000";
-        std::cout << "Ret: " << ret << std::endl;
 
-
-        std::cout << "Encoded: " << ret << std::endl;
-        //printStringAsHex(ret);
         return ret;
 
     }
 
     std::string encodeDN_IPv4_Ipv6(std:: string input) {
-        std::cout << input.length() << std::endl;
         if(input.length() == 49) {
             return encodeIPv6(input);
         }
@@ -346,8 +333,8 @@ public:
     std::string ReverseIP(std::string address) {
         int type = checkIPAddressType(address);
         if (type == 0) {
-            std::cout << "Invalid IP querry address" << std::endl;
-            exit(0);
+            std::cerr << "Invalid IP querry address" << std::endl;
+            exit(1);
         }
 
         if (type == AF_INET) {
