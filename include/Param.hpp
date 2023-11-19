@@ -11,6 +11,7 @@
 #include "LittleHelpers.hpp"
 
 class Parameters {
+    // Simple class for parsing and storing parameters
 private:
     bool r_param = false;
     bool x_param = false;

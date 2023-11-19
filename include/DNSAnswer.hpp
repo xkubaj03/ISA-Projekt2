@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 class Answer {
+    // Class for storing and parsing answer, authority and additional section of DNS packet
 private:
     std::string name;
     uint16_t dnstype;
@@ -21,6 +22,7 @@ private:
 
 public:
     Answer(char *buffer, int &offset) {
+        // Constructor for parsing from buffer
         Helper helper;
         setName(helper.get_DN(buffer, offset));
 
@@ -77,6 +79,7 @@ public:
 
 private:
     std::string get_answer_data(char *buffer, int &offset) {
+        // Function for parsing data section capable of parsing IPv4, IPv6, domain name
         Helper helper;
         std::string ret;
 

@@ -8,24 +8,24 @@
 #include <arpa/inet.h>  //inet_addr
 
 class Question {
+    // Class for storing and parsing question section of DNS packet
 private:
     std::string qname;
     uint16_t qtype;
     uint16_t qclass;    /* The QCLASS (1 = IN) */
 
     explicit Question(Question *question) {
+        // Constructor for temporary instance of Question class that is used for parsing
         Helper helper;
         setQname(helper.encodeDN_IPv4_Ipv6(question->getQname()));
         setQname((this->getQname().substr(0, this->getQname().length())));
         setQtype(htons(question->getQtype()));
         setQclass(htons(question->getQclass()));
-
-        //std::cout << "Reverse: \"" << this->getQname() << "\"" << std::endl;
-        //helper.printStringAsHex(this->getQname());
     }
 
 public:
     explicit Question(Parameters param) {
+        // Constructor for creating question for sending
         Helper helper;
         setQclass(1);   /* QCLASS 1=IN */
         setQtype(1);    /* QTYPE 1=A */
@@ -44,6 +44,7 @@ public:
     }
 
     Question(char *buffer, int &offset) {
+        // Constructor for parsing question from buffer
         Helper helper;
         setQname(helper.get_DN(buffer, offset));
 

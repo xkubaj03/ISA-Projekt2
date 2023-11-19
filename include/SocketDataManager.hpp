@@ -30,6 +30,7 @@ public:
     int recvOffset = 0;
 
     explicit SocketDataManager(Parameters param) {
+        // Constructor for creating socket and setting server address
         Helper helper;
         sockaddr_storage addressInfo;
         std::string resolvedIP = helper.getSIP(param.getSParam(), addressInfo);
@@ -40,6 +41,7 @@ public:
             exit(1);
         }
 
+        // Deciding which struct to use for server address
         if (addressInfo.ss_family == AF_INET) {
             this->serverV4.sin_port = htons(param.getPParam());
             this->serverV4.sin_family = AF_INET;

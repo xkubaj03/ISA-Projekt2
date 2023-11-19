@@ -25,12 +25,13 @@ int main(int argc, char **argv) {
     dataManager.Send();
     dataManager.Recieve();
 
-
     Header recieved_header(dataManager.recvBuffer, dataManager.recvOffset, dataManager.getBytesReceived());
+
     recieved_header.printDNSReplyCode();
     helper.printHeaderInfo(recieved_header.getFlags());
 
     Question recieved_question(dataManager.recvBuffer, dataManager.recvOffset);
+
     recieved_question.PrintQuestion();
 
     std::vector<int> counts = {
@@ -59,10 +60,6 @@ int main(int argc, char **argv) {
         Helper::printCharArrayAsHex(dataManager.recvBuffer + dataManager.recvOffset,
                                     dataManager.getBytesReceived() - dataManager.recvOffset);
     }
-
-
-    /*Helper::printCharArrayAsHex(dataManager.recvBuffer,
-                               dataManager.getBytesReceived());*/
 
     exit(EXIT_SUCCESS);
 }

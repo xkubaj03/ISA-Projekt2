@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 
 class Header {
+    // Class for storing and parsing header section of DNS packet
 private:
     uint16_t id;        /* ID number */
     uint16_t flags;     /* Bit flags */
@@ -19,6 +20,7 @@ private:
     uint16_t arcount;   /* additional count */
 
     Header(Header *header) {
+        // Constructor for temporary instance of Header class that is used for parsing
         setId(htons(header->getId()));
         setFlags(htons(header->getFlags()));
         setQdCount(htons(header->getQdCount()));
@@ -29,6 +31,7 @@ private:
 
 public:
     Header(Parameters param) {
+        // Constructor for creating header for sending
         setId(0x1234);
 
         int16_t flags = 0x0000;
@@ -44,6 +47,7 @@ public:
     }
 
     Header(char *buffer, int &offset, ssize_t bytesReceived) {
+        // Constructor for parsing header from buffer
         if((long int)(offset + sizeof(Header)) > bytesReceived) {
             std::cerr << "Not enough data to recieve DNS header" << std::endl;
             exit(1);

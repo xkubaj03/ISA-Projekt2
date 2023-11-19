@@ -14,6 +14,7 @@
 #include <sstream>
 
 class Helper {
+    // Class for some helper functions used by other classes and prints
 public:
     static void printUsage() {
         std::cerr << "Usage: ./dns -s server [-r] [-x] [-6] [-p port] name" << std::endl;
@@ -79,22 +80,6 @@ public:
         }
     }
 
-    std::string get_IPv4(std::string name) {
-        struct hostent *host_info;
-
-        host_info = gethostbyname(name.c_str());
-        if (host_info == NULL) {
-            std::cerr << "gethostbyname error" << std::endl;
-            exit(1);
-        }
-
-        struct in_addr *ipv4_addr = (struct in_addr *) host_info->h_addr;
-        char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, ipv4_addr, ip, INET_ADDRSTRLEN);
-
-        return ip;
-    }
-
     bool getAddressInfo(const std::string &input, struct sockaddr_storage &addr) {
         struct addrinfo hints, *res;
         memset(&hints, 0, sizeof hints);
@@ -111,38 +96,6 @@ public:
         memcpy(&addr, res->ai_addr, res->ai_addrlen);
         freeaddrinfo(res);
         return true;
-    }
-
-    std::string get_IP2(const std::string &name, int family = AF_UNSPEC) {
-        struct addrinfo hints, *result, *rp;
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = family;
-
-        int ret = getaddrinfo(name.c_str(), nullptr, &hints, &result);
-        if (ret != 0) {
-            std::cerr << "getaddrinfo error: " << gai_strerror(ret) << std::endl;
-            exit(1);
-        }
-
-        for (rp = result; rp != nullptr; rp = rp->ai_next) {
-            if (rp->ai_family == AF_INET) { // IPv4
-                struct sockaddr_in *ipv4 = (struct sockaddr_in *) rp->ai_addr;
-                char ip[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &(ipv4->sin_addr), ip, INET_ADDRSTRLEN);
-                freeaddrinfo(result);
-                return ip;
-            } else if (rp->ai_family == AF_INET6) { // IPv6
-                struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *) rp->ai_addr;
-                char ip[INET6_ADDRSTRLEN];
-                inet_ntop(AF_INET6, &(ipv6->sin6_addr), ip, INET6_ADDRSTRLEN);
-                freeaddrinfo(result);
-                return ip;
-            }
-        }
-
-        freeaddrinfo(result);
-        std::cerr << "No valid IP address found for the given hostname." << std::endl;
-        exit(1);
     }
 
     std::string getSIP(const std::string &input, sockaddr_storage &addr) {
