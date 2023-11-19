@@ -7,6 +7,7 @@
 #define DNSQ_HPP
 
 #include "Param.hpp"
+#include <cstring>     //string
 #include <arpa/inet.h>
 
 class Header {

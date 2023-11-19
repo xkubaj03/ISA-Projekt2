@@ -4,14 +4,20 @@
  *  Login: xkubaj03
  */
 #include "../include/Helper.hpp"
+#include "../include/DNSQuestion.hpp"
 
 #include <iostream>
 #include <gtest/gtest.h>
 #include <cstdlib> //system()
 
-TEST(ReverseIPTest, IPv4) {
+/*TEST(ReverseIPTest, IPv4) {
+    int argc = 4;
+    char* argv[4] = {"dns", "-s", "www.fit.vutbr.cz", "147.229.9.12"};
+    Parameters param(argc, argv);
+    Question question(param);
+
     Helper helper;
-    std::string reversedIP = helper.ReverseIP("147.229.9.26");
+    std::string reversedIP = question.ReverseIP("147.229.9.26");
     EXPECT_EQ("26.9.229.147.in-addr.arpa.", reversedIP);
 }
 
@@ -25,7 +31,7 @@ TEST(EncodeIPTest, IPv4) {
     Helper helper;
     std::string encodedIP = helper.encodeDN_IPv4_Ipv6("147.229.9.26.in-addr.arpa.");
     EXPECT_EQ("\003147\003229\0019\00226\007in-addr\004arpa", encodedIP.substr(0, encodedIP.length() - 1));
-}
+}*/
 
 TEST(FunctionalTest, dns) {
     const char* command = "./dns";

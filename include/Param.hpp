@@ -22,7 +22,6 @@ private:
 
 public:
     Parameters(int argc, char *argv[]) {
-        Helper helper;
         int opt;
 
         while ((opt = getopt(argc, argv, "rx6s:p:")) != -1) {
@@ -54,7 +53,7 @@ public:
 
                 default:
                     std::cerr << "Unknown parameter: " << static_cast<char>(optopt) << std::endl;
-                    helper.printUsage();
+                    printUsage();
                     exit(1);
             }
         }
@@ -64,21 +63,25 @@ public:
 
         } else {
             std::cerr << "Missing targeted address!" << std::endl;
-            helper.printUsage();
+            printUsage();
             exit(1);
         }
 
         if (this->getSParam().empty()) {
             std::cerr << "Requiered parameter -s with argument" << std::endl;
-            helper.printUsage();
+            printUsage();
             exit(1);
         }
 
         if (this->getA6Param() && this->getXParam()) {
             std::cerr << "Parameters -x and -6 can't be used together" << std::endl;
-            helper.printUsage();
+            printUsage();
             exit(1);
         }
+    }
+
+    static void printUsage() {
+        std::cerr << "Usage: ./dns -s server [-r] [-x] [-6] [-p port] name" << std::endl;
     }
 
     bool getRParam() const { return r_param; }

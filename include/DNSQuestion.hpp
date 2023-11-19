@@ -5,6 +5,7 @@
  */
 
 #include "Param.hpp"
+#include "Helper.hpp"
 #include <arpa/inet.h>  //inet_addr
 
 class Question {
@@ -16,8 +17,7 @@ private:
 
     explicit Question(Question *question) {
         // Constructor for temporary instance of Question class that is used for parsing
-        Helper helper;
-        setQname(helper.encodeDN_IPv4_Ipv6(question->getQname()));
+        setQname(encodeDN_IPv4_Ipv6(question->getQname()));
         setQname((this->getQname().substr(0, this->getQname().length())));
         setQtype(htons(question->getQtype()));
         setQclass(htons(question->getQclass()));
@@ -26,7 +26,6 @@ private:
 public:
     explicit Question(Parameters param) {
         // Constructor for creating question for sending
-        Helper helper;
         setQclass(1);   /* QCLASS 1=IN */
         setQtype(1);    /* QTYPE 1=A */
 
@@ -36,7 +35,7 @@ public:
 
         if (param.getXParam()) {
             setQtype(12); /* QTYPE 12=PTR */
-            setQname(helper.ReverseIP(param.getAddressParam()));
+            setQname(ReverseIP(param.getAddressParam()));
 
         } else {
             setQname(param.getAddressParam());
@@ -97,6 +96,117 @@ public:
     }
 
 private:
+    int checkIPAddressType(const std::string &input) {
+        struct in_addr ipv4Addr;
+        struct in6_addr ipv6Addr;
+
+        if (inet_pton(AF_INET, input.c_str(), &ipv4Addr) == 1) {
+            return AF_INET;
+        }
+
+        if (inet_pton(AF_INET6, input.c_str(), &ipv6Addr) == 1) {
+            return AF_INET6;
+        }
+
+        return 0;
+    }
+
+    std::string expandAndReverseIPv6Address(std::string address) {
+        struct in6_addr addr;
+        if (inet_pton(AF_INET6, address.c_str(), &addr) != 1) {
+            return "Invalid IPv6 address";
+        }
+
+        std::stringstream expanded;
+        expanded << std::hex << std::setfill('0');
+        for (int i = 0; i < 8; ++i) {
+            expanded << std::setw(4) << ntohs(addr.s6_addr16[i]);
+        }
+
+        std::string ret = expanded.str();
+        int n = ret.length();
+
+        for (int i = 0; i < n / 2; i++) {
+            std::swap(ret[i], ret[n - i - 1]);
+        }
+
+        ret.append(".ip6.arpa.");
+
+        return ret;
+    }
+
+    std::string reverseIPv4Address(std::string address) {
+        Helper helper;
+        sockaddr_storage addr;
+        address = helper.getSIP(address, addr);
+        std::string ret;
+
+        int pos;
+        for (int i = 0; i < 3; i++) {
+            pos = address.rfind('.');
+            ret.append(address, pos + 1);
+            ret.append(".");
+            address = address.substr(0, pos);
+        }
+        ret.append(address);
+        ret.append(".in-addr.arpa.");
+        return ret;
+    }
+
+    std::string encodeIPv6(std::string input) {
+        std::string ret;
+
+        for(uint i = 0; i < 32; i++) {
+            ret += "\001";
+            ret += input[i];
+        }
+        ret += "\003ip6\004arpa\000";
+
+        return ret;
+    }
+
+    std::string encodeDN_IPv4_Ipv6(std:: string input) {
+        if(input.length() == 42) {
+            return encodeIPv6(input);
+        }
+
+        return encodeDN_IPv4(input);
+    }
+
+    std::string encodeDN_IPv4(std::string hostname) {
+        hostname = "." + hostname;
+
+        int dot = 0;
+        int next_dot = 1;
+
+        while (hostname[next_dot] != 0) {
+            if (hostname[next_dot] != '.') {
+                next_dot++;
+
+            } else {
+                hostname[dot] = next_dot - dot - 1;
+                dot = next_dot++;
+            }
+        }
+
+        hostname[dot] = hostname.length() - dot - 1;
+
+        return hostname;
+    }
+
+    std::string ReverseIP(std::string address) {
+        int type = checkIPAddressType(address);
+        if (type == 0) {
+            std::cerr << "Invalid IP querry address" << std::endl;
+            exit(1);
+        }
+
+        if (type == AF_INET) {
+            return reverseIPv4Address(address);
+        }
+        return expandAndReverseIPv6Address(address);
+    }
+
     void setQname(std::string qname) {
         this->qname = qname;
     }
