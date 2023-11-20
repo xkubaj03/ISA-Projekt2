@@ -17,6 +17,7 @@ class Helper {
     // Class for some helper functions used by other classes and prints
 public:
     static void printCharArrayAsHex(const char *array, std::size_t length) {
+        // This method was created by Chat GPT 3.5
         for (std::size_t i = 0; i < length; ++i) {
             std::cout << std::hex << std::setw(2) << std::setfill('0')
                       << static_cast<int>(static_cast<unsigned char>(array[i])) << " ";
@@ -25,6 +26,7 @@ public:
     }
 
     static void printStringAsHex(const std::string &str) {
+        // This method was created by Chat GPT 3.5
         for (char c: str) {
             std::cout << std::hex << std::setw(2) << std::setfill('0')
                       << static_cast<int>(static_cast<unsigned char>(c))
@@ -34,6 +36,7 @@ public:
     }
 
     std::string get_DN(char *buffer, int &offset) {
+        // This method was created by Chat GPT 3.5
         std::string ret;
         uint16_t pointer;
         uint8_t label_length;
@@ -184,8 +187,6 @@ public:
         freeaddrinfo(res);
         return true;
     }
-
-
 };
 
 #endif //Helper_HPP

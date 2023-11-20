@@ -49,7 +49,7 @@ public:
 
     Header(char *buffer, int &offset, ssize_t bytesReceived) {
         // Constructor for parsing header from buffer
-        if((long int)(offset + sizeof(Header)) > bytesReceived) {
+        if ((long int) (offset + sizeof(Header)) > bytesReceived) {
             std::cerr << "Not enough data to recieve DNS header" << std::endl;
             exit(1);
         }
@@ -89,18 +89,23 @@ public:
         switch (this->flags & 0x000F) {
             case 1:
                 std::cerr << "Format error: The query has a format error." << std::endl;
+                exit(2);
                 break;
             case 2:
                 std::cerr << "Server failure: The DNS server encountered a failure." << std::endl;
+                exit(2);
                 break;
             case 3:
                 std::cerr << "Name error: The domain name does not exist." << std::endl;
+                exit(2);
                 break;
             case 4:
                 std::cerr << "Not Implemented: The DNS server does not support the requested query." << std::endl;
+                exit(2);
                 break;
             case 5:
                 std::cerr << "Refused: The DNS server refused to respond to the query." << std::endl;
+                exit(2);
                 break;
         }
     }

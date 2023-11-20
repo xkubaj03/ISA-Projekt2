@@ -111,9 +111,59 @@ private:
         } else if ((this->getDnsType() == 5) || (this->getDnsType() == 2) || (this->getDnsType() == 12)) {
             ret = helper.get_DN(buffer, offset);
 
+        } else if (this->getDnsType() == 6) {
+            ret = get_SOA_data(buffer, offset);
         } else {
             std::cerr << "Error while decoding data section: invalid data format" << std::endl;
         }
+
+        return ret;
+    }
+
+    std::string get_SOA_data(char *buffer, int &offset) {
+        Helper helper;
+        std::string ret;
+
+        ret += "MNAME: ";
+        ret += helper.get_DN(buffer, offset);
+        ret += ", RNAME: ";
+        ret += helper.get_DN(buffer, offset);
+
+
+        uint32_t serial;
+        uint32_t refresh;
+        uint32_t retry;
+        uint32_t expire;
+        uint32_t minimum;
+
+        memcpy(&serial, buffer + offset, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+        memcpy(&refresh, buffer + offset, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+        memcpy(&retry, buffer + offset, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+        memcpy(&expire, buffer + offset, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+        memcpy(&minimum, buffer + offset, sizeof(uint32_t));
+        offset += sizeof(uint32_t);
+
+
+        serial = ntohl(serial);
+        refresh = ntohl(refresh);
+        retry = ntohl(retry);
+        expire = ntohl(expire);
+        minimum = ntohl(minimum);
+
+        ret += ", SERIAL: ";
+        ret += std::to_string(serial);
+        ret += ", REFRESH: ";
+        ret += std::to_string(refresh);
+        ret += ", RETRY: ";
+        ret += std::to_string(retry);
+        ret += ", EXPIRE: ";
+        ret += std::to_string(expire);
+        ret += ", MINIMUM: ";
+        ret += std::to_string(minimum);
 
         return ret;
     }
