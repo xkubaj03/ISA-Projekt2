@@ -54,7 +54,7 @@ Additional section (0)
 - Program `dns` se vypořádává s chybnými vstupy.
 - Všechny chybové výpisy jsou vypisovány na standardní chybový výstup.
 - Program `dns` je implementován v jazyce C++.
-- Pro testy je použitá nestandartní knihovna gtest.
+- Pro testy je použitá nestandartní knihovna gtest a aby se nevypisovala chyba je nutné použít cíl dns("make dns").
 - Pokud nepřijde odpověď od DNS serveru je nutné ručně vypnout program pomocí `Ctrl+C`.
 
 ## Seznam odevzaných souborů
@@ -62,6 +62,7 @@ Additional section (0)
 - Makefile
 - README.md
 - src/dns.cpp
+- doc/dokumentace.pdf
 - include/Helper.hpp
 - include/Param.hpp
 - include/DNSHeader.hpp

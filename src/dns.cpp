@@ -55,11 +55,5 @@ int main(int argc, char **argv) {
         AnsAuthAdd.push_back(row);
     }
 
-
-    if((uint16_t)(recieved_header.getFlags() << 15) == 0){
-        Helper::printCharArrayAsHex(dataManager.recvBuffer + dataManager.recvOffset,
-                                    dataManager.getBytesReceived() - dataManager.recvOffset);
-    }
-
     exit(EXIT_SUCCESS);
 }
