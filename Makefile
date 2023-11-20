@@ -2,8 +2,8 @@
 # Autor: Josef Kuba
 # Login: xkubaj03
 CC=g++
-CFLAGS=-pedantic -Wall -Wextra -g -std=c++14 $(shell pkg-config --cflags gtest)
-LDFLAGS=-lpcap $(shell pkg-config --libs gtest)
+CFLAGS=-pedantic -Wall -Wextra -g -std=c++14
+LDFLAGS=-lpcap
 NAME=dns
 TEST_SRC=$(wildcard tests/*.cpp)
 TEST_OBJ=$(patsubst tests/%.cpp,obj/%.o,$(TEST_SRC))
@@ -31,10 +31,10 @@ test: $(TEST_BIN)
 
 obj/%.o: tests/%.cpp $(HDR)
 	@mkdir -p obj
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags gtest) -c $< -o $@
 
 %: obj/%.o
-	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(shell pkg-config --cflags gtest) $< -o $@ $(LDFLAGS) $(shell pkg-config --libs gtest)
 
 clean:
 	-rm -f $(NAME) $(OBJ) $(TEST_BIN)

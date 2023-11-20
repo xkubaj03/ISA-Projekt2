@@ -1,4 +1,4 @@
-# Projekt DNS Resolverr
+# Projekt DNS Resolver
 
 Tento projekt se zabývá vytvořením aplikace `dns`, která umožní zasílat DNS dotazy na DNS servery a vypisovat přijaté odpovědi v čitelné podobě na standardní výstup. Program `dns` podporuje komunikaci pomocí UDP a umí zpracovávat dotazy typu A, AAAA a PTR.
 
