@@ -112,7 +112,7 @@ private:
     }
 
     std::string expandAndReverseIPv6Address(std::string address) {
-        // This method was created by Chat GPT 3.5
+        // This method was created by Chat GPT 3.5 (with some modifications)
         struct in6_addr addr;
         if (inet_pton(AF_INET6, address.c_str(), &addr) != 1) {
             return "Invalid IPv6 address";

@@ -36,7 +36,7 @@ public:
     }
 
     std::string get_DN(char *buffer, int &offset) {
-        // This method was created by Chat GPT 3.5
+        // This method was created by Chat GPT 3.5 (with some modifications)
         std::string ret;
         uint16_t pointer;
         uint8_t label_length;
@@ -48,10 +48,13 @@ public:
                 int tmp = offset;
                 offset = (pointer & 0x3FFF);
 
-                std::string tmp_string = get_DN(buffer, offset);
+
+                std::string tmp_string;
                 if (!ret.empty()) {
-                    tmp_string[0] = '.';
+                    tmp_string = '.' + get_DN(buffer, offset);
                 }
+
+                tmp_string = get_DN(buffer, offset) + tmp_string;
                 ret += tmp_string;
 
                 offset = tmp + 2;
